@@ -27,10 +27,10 @@ FROM python:alpine
 # Label the instance and set maintainer #
 #########################################
 LABEL com.github.actions.name="GitHub Super-Linter" \
-      com.github.actions.description="Lint your code base with GitHub Actions" \
-      com.github.actions.icon="code" \
-      com.github.actions.color="red" \
-      maintainer="GitHub DevOps <github_devops@github.com>"
+    com.github.actions.description="Lint your code base with GitHub Actions" \
+    com.github.actions.icon="code" \
+    com.github.actions.color="red" \
+    maintainer="GitHub DevOps <github_devops@github.com>"
 
 ################################
 # Set ARG values used in Build #
@@ -121,6 +121,12 @@ RUN wget --tries=5 -O phive.phar https://phar.io/releases/phive.phar \
     && rm phive.phar.asc \
     && phive install --trust-gpg-keys 31C7E470E2138192,CF1A108D0E7AE720,8A03EA3B385DBAA1
 # Trusted GPG keys for PHP linters:   phpcs,           phpstan,         psalm
+
+#####################################
+# Install PHPCS_DRUPAL dependencies #
+#####################################
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+    && composer global require drupal/coder squizlabs/php_codesniffer
 
 #########################################
 # Install Powershell + PSScriptAnalyzer #
@@ -306,6 +312,7 @@ ENV ACTIONS_RUNNER_DEBUG=${ACTIONS_RUNNER_DEBUG} \
     VALIDATE_PHP=${VALIDATE_PHP} \
     VALIDATE_PHP_BUILTIN=${VALIDATE_PHP_BUILTIN} \
     VALIDATE_PHP_PHPCS=${VALIDATE_PHP_PHPCS} \
+    VALIDATE_PHP_PHPCS_DRUPAL=${VALIDATE_PHP_PHPCS_DRUPAL} \
     VALIDATE_PHP_PHPSTAN=${VALIDATE_PHP_PHPSTAN} \
     VALIDATE_PHP_PSALM=${VALIDATE_PHP_PSALM} \
     VALIDATE_POWERSHELL=${VALIDATE_POWERSHELL} \
