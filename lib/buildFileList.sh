@@ -249,9 +249,9 @@ function BuildFileList() {
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
-    ######################
+    ############################
     # Get the PHP Drupal files #
-    ######################
+    ############################
     elif [ "${FILE_TYPE}" == "module" ] || [ "${FILE_TYPE}" == "inc" ] ||
       [ "${FILE_TYPE}" == "install" || [ "${FILE_TYPE}" == "test" ||
       [ "${FILE_TYPE}" == "profile" || [ "${FILE_TYPE}" == "theme" ||
