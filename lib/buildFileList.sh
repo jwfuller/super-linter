@@ -242,8 +242,24 @@ function BuildFileList() {
       ################################
       FILE_ARRAY_PHP_BUILTIN+=("${FILE}")
       FILE_ARRAY_PHP_PHPCS+=("${FILE}")
+      FILE_ARRAY_PHP_PHPCS_DRUPAL+=("${FILE}")
       FILE_ARRAY_PHP_PHPSTAN+=("${FILE}")
       FILE_ARRAY_PHP_PSALM+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+    ######################
+    # Get the PHP Drupal files #
+    ######################
+    elif [ "${FILE_TYPE}" == "module" ] || [ "${FILE_TYPE}" == "inc" ] ||
+      [ "${FILE_TYPE}" == "install" || [ "${FILE_TYPE}" == "test" ||
+      [ "${FILE_TYPE}" == "profile" || [ "${FILE_TYPE}" == "theme" ||
+      [ "${FILE_TYPE}" == "info" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_PHP_PHPCS_DRUPAL+=("${FILE}")
       ##########################################################
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################

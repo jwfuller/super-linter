@@ -199,6 +199,7 @@ VALIDATE_OPENAPI="${VALIDATE_OPENAPI}"                               # Boolean t
 VALIDATE_PERL="${VALIDATE_PERL}"                                     # Boolean to validate language
 VALIDATE_PHP_BUILTIN="${VALIDATE_PHP:-$VALIDATE_PHP_BUILTIN}"        # Boolean to validate language
 VALIDATE_PHP_PHPCS="${VALIDATE_PHP_PHPCS}"                           # Boolean to validate language
+VALIDATE_PHP_PHPCS_DRUPAL="${VALIDATE_PHP_PHPCS_DRUPAL}"             # Boolean to validate language
 VALIDATE_PHP_PHPSTAN="${VALIDATE_PHP_PHPSTAN}"                       # Boolean to validate language
 VALIDATE_PHP_PSALM="${VALIDATE_PHP_PSALM}"                           # Boolean to validate language
 VALIDATE_POWERSHELL="${VALIDATE_POWERSHELL}"                         # Boolean to validate language
@@ -299,6 +300,7 @@ FILE_ARRAY_OPENAPI=()             # Array of files to check
 FILE_ARRAY_PERL=()                # Array of files to check
 FILE_ARRAY_PHP_BUILTIN=()         # Array of files to check
 FILE_ARRAY_PHP_PHPCS=()           # Array of files to check
+FILE_ARRAY_PHP_PHPCS_DRUPAL=()    # Array of files to check
 FILE_ARRAY_PHP_PHPSTAN=()         # Array of files to check
 FILE_ARRAY_PHP_PSALM=()           # Array of files to check
 FILE_ARRAY_POWERSHELL=()          # Array of files to check
@@ -377,6 +379,8 @@ ERRORS_FOUND_PHP_BUILTIN=0              # Count of errors found
 export ERRORS_FOUND_PHP_BUILTIN         # Workaround SC2034
 ERRORS_FOUND_PHP_PHPCS=0                # Count of errors found
 export ERRORS_FOUND_PHP_PHPCS           # Workaround SC2034
+ERRORS_FOUND_PHP_PHPCS_DRUPAL=0         # Count of errors found
+export ERRORS_FOUND_PHP_PHPCS_DRUPAL    # Workaround SC2034
 ERRORS_FOUND_PHP_PHPSTAN=0              # Count of errors found
 export ERRORS_FOUND_PHP_PHPSTAN         # Workaround SC2034
 ERRORS_FOUND_PHP_PSALM=0                # Count of errors found
@@ -1252,6 +1256,8 @@ GetLinterRules "LUA"
 GetLinterRules "MARKDOWN"
 # Get PHPCS rules
 GetLinterRules "PHP_PHPCS"
+# Get PHPCS_DRUPAL rules
+GetLinterRules "PHP_PHPCS_DRUPAL"
 # Get PHP_PHPSTAN rules
 GetLinterRules "PHP_PHPSTAN"
 # Get PHP_PSALM rules
@@ -1686,6 +1692,14 @@ if [ "${VALIDATE_PHP_PHPCS}" == "true" ]; then
   ############################################
   # LintCodebase "FILE_TYPE" "LINTER_NAME" "LINTER_CMD" "FILE_TYPES_REGEX" "FILE_ARRAY"
   LintCodebase "PHP_PHPCS" "phpcs" "phpcs --standard=${PHP_PHPCS_LINTER_RULES}" ".*\.\(php\)\$" "${FILE_ARRAY_PHP_PHPCS[@]}"
+fi
+
+if [ "${VALIDATE_PHP_PHPCS_DRUPAL}" == "true" ]; then
+  ###################################################
+  # Lint the Drupal PHP files using PHP CodeSniffer #
+  ###################################################
+  # LintCodebase "FILE_TYPE" "LINTER_NAME" "LINTER_CMD" "FILE_TYPES_REGEX" "FILE_ARRAY"
+  LintCodebase "PHP_PHPCS_DRUPAL" "phpcs" "phpcs --standard=${PHP_PHPCS_LINTER_RULES}" ".*\.\(php\|module\|inc\|install\|test\|profile\|theme\|info\)\$" "${FILE_ARRAY_PHP_PHPCS_DRUPAL[@]}"
 fi
 
 if [ "${VALIDATE_PHP_PHPSTAN}" == "true" ]; then
