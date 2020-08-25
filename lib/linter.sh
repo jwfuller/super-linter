@@ -87,6 +87,12 @@ PHP_PHPCS_LINTER_RULES="${GITHUB_WORKSPACE}/${PHP_PHPCS_FILE_NAME}" # Path to th
 if [ ! -f "$PHP_PHPCS_LINTER_RULES" ]; then
   PHP_PHPCS_LINTER_RULES="${DEFAULT_RULES_LOCATION}/${PHP_PHPCS_FILE_NAME}" # Path to the PHP CodeSniffer lint rules
 fi
+# PHPCS Drupal Vars
+PHP_PHPCS_DRUPAL_FILE_NAME='phpcs.xml'   
+PHP_PHPCS_DRUPAL_LINTER_RULES="${GITHUB_WORKSPACE}/${PHP_PHPCS_DRUPAL_FILE_NAME}" # Path to the PHP CodeSniffer lint rules in the repository
+if [ ! -f "$PHP_PHPCS_DRUPAL_LINTER_RULES" ]; then
+  PHP_PHPCS_DRUPAL_LINTER_RULES="${DEFAULT_RULES_LOCATION}/${PHP_PHPCS_DRUPAL_FILE_NAME}" # Path to the PHP CodeSniffer lint rules
+fi
 # PHPStan Vars
 PHP_PHPSTAN_FILE_NAME='phpstan.neon'                                    # Name of the file
 PHP_PHPSTAN_LINTER_RULES="${GITHUB_WORKSPACE}/${PHP_PHPSTAN_FILE_NAME}" # Path to the PHPStan lint rules in the repository
