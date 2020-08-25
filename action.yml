@@ -1,9 +1,9 @@
-name: 'Super-Linter'
-author: 'GitHub'
-description: 'It is a simple combination of various linters, written in bash, to help validate your source code.'
+name: "Super-Linter-Drupal"
+author: "GitHub"
+description: "It is a simple combination of various linters, written in bash, to help validate your source code."
 runs:
-  using: 'docker'
-  image: 'docker://github/super-linter:v3'
+  using: "docker"
+  image: "docker://github/super-linter:v3"
 branding:
-  icon: 'check-square' 
-  color: 'white'
+  icon: "check-square"
+  color: "white"
