@@ -1,9 +1,9 @@
 name: "Super-Linter-Drupal"
 author: "GitHub"
-description: "It is a simple combination of various linters, written in bash, to help validate your source code."
+description: "It is a simple combination of various linters, written in bash, to help validate your source code. Now with specific support for Drupal"
 runs:
-  using: "docker"
-  image: "docker://github/super-linter:v3"
+  using: 'docker'
+  image: 'docker://ghcr.io/github/super-linter:v3'
 branding:
   icon: "check-square"
   color: "white"

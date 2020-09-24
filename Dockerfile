@@ -7,21 +7,30 @@
 #########################################
 # Get dependency images as build stages #
 #########################################
-FROM borkdude/clj-kondo:2020.07.29 as clj-kondo
+FROM borkdude/clj-kondo:2020.09.09 as clj-kondo
 FROM dotenvlinter/dotenv-linter:2.1.0 as dotenv-linter
 FROM mstruebing/editorconfig-checker:2.1.0 as editorconfig-checker
-FROM golangci/golangci-lint:v1.30.0 as golangci-lint
+FROM golangci/golangci-lint:v1.31.0 as golangci-lint
 FROM yoheimuta/protolint:v0.26.0 as protolint
 FROM koalaman/shellcheck:v0.7.1 as shellcheck
-FROM wata727/tflint:0.19.1 as tflint
+FROM wata727/tflint:0.20.2 as tflint
+FROM accurics/terrascan:d182f1c as terrascan
 FROM hadolint/hadolint:latest-alpine as dockerfile-lint
-FROM assignuser/lintr-lib:v0.1.0 as lintr-lib
-FROM assignuser/chktex-alpine:v0.1.0 as chktex
+FROM ghcr.io/assignuser/lintr-lib:0.1.2 as lintr-lib
+FROM ghcr.io/assignuser/chktex-alpine:0.1.1 as chktex
+FROM garethr/kubeval:0.15.0 as kubeval
 
 ##################
 # Get base image #
 ##################
 FROM python:alpine
+
+############################
+# Get the build arguements #
+############################
+ARG BUILD_DATE
+ARG BUILD_REVISION
+ARG BUILD_VERSION
 
 #########################################
 # Label the instance and set maintainer #
@@ -30,7 +39,23 @@ LABEL com.github.actions.name="GitHub Super-Linter" \
     com.github.actions.description="Lint your code base with GitHub Actions" \
     com.github.actions.icon="code" \
     com.github.actions.color="red" \
-    maintainer="GitHub DevOps <github_devops@github.com>"
+    maintainer="GitHub DevOps <github_devops@github.com>" \
+    org.opencontainers.image.created=$BUILD_DATE \
+    org.opencontainers.image.revision=$BUILD_REVISION \
+    org.opencontainers.image.version=$BUILD_VERSION \
+    org.opencontainers.image.authors="GitHub DevOps <github_devops@github.com>" \
+    org.opencontainers.image.url="https://github.com/github/super-linter" \
+    org.opencontainers.image.source="https://github.com/github/super-linter" \
+    org.opencontainers.image.documentation="https://github.com/github/super-linter" \
+    org.opencontainers.image.vendor="GitHub" \
+    org.opencontainers.image.description="Lint your code base with GitHub Actions"
+
+#################################################
+# Set ENV values used for debugging the version #
+#################################################
+ENV BUILD_DATE=$BUILD_DATE
+ENV BUILD_REVISION=$BUILD_REVISION
+ENV BUILD_VERSION=$BUILD_VERSION
 
 ################################
 # Set ARG values used in Build #
@@ -57,13 +82,17 @@ RUN apk add --update --no-cache \
     bash \
     coreutils \
     curl \
+    file \
     gcc \
     git git-lfs\
     go \
     gnupg \
     icu-libs \
     jq \
-    libc-dev libxml2-dev libxml2-utils \
+    krb5-libs \
+    libc-dev libxml2-dev libxml2-utils libgcc \
+    libcurl libintl libssl1.1 libstdc++ \
+    linux-headers \
     make \
     musl-dev \
     npm nodejs-current \
@@ -103,6 +132,16 @@ ENV PATH="/node_modules/.bin:${PATH}"
 # Installs ruby dependencies #
 ##############################
 RUN bundle install
+
+###################################
+# Install DotNet and Dependencies #
+###################################
+RUN wget --tries=5 -O dotnet-install.sh https://dot.net/v1/dotnet-install.sh \
+    && chmod +x dotnet-install.sh \
+    && ./dotnet-install.sh --install-dir /usr/share/dotnet -channel Current -version latest \
+    && /usr/share/dotnet/dotnet tool install -g dotnet-format
+
+ENV PATH="${PATH}:/root/.dotnet/tools:/usr/share/dotnet"
 
 ##############################
 # Installs Perl dependencies #
@@ -171,6 +210,13 @@ COPY --from=golangci-lint /usr/bin/golangci-lint /usr/bin/
 ##################
 COPY --from=tflint /usr/local/bin/tflint /usr/bin/
 
+##################
+# Install Terrascan #
+##################
+COPY --from=terrascan /go/bin/terrascan /usr/bin/
+RUN terrascan init
+
+
 ######################
 # Install protolint #
 ######################
@@ -213,9 +259,15 @@ RUN wget --tries=5 https://storage.googleapis.com/dart-archive/channels/stable/r
     && mv dart-sdk/bin/* /usr/bin/ && mv dart-sdk/lib/* /usr/lib/ && mv dart-sdk/include/* /usr/include/ \
     && rm -r dart-sdk/
 
-################
-# Install Raku #
-################
+################################
+# Create and install Bash-Exec #
+################################
+RUN printf '#!/bin/bash \n\nif [[ -x "$1" ]]; then exit 0; else echo "Error: File:[$1] is not executable"; exit 1; fi' > /usr/bin/bash-exec \
+    && chmod +x /usr/bin/bash-exec
+
+#################################################
+# Install Raku and additional Edge dependencies #
+#################################################
 # Basic setup, programs and init
 RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/testing/" >> /etc/apk/repositories \
     && apk add --update --no-cache rakudo zef
@@ -223,7 +275,6 @@ RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/testing/" >> /etc/apk/reposi
 ######################
 # Install CheckStyle #
 ######################
-
 RUN CHECKSTYLE_LATEST=$(curl -s https://api.github.com/repos/checkstyle/checkstyle/releases/latest \
     | grep browser_download_url \
     | grep ".jar" \
@@ -261,6 +312,23 @@ RUN R -e "install.packages(list.dirs('/home/r-library',recursive = FALSE), repos
 COPY --from=chktex /usr/bin/chktex /usr/bin/
 RUN cd ~ && touch .chktexrc
 
+###################
+# Install kubeval #
+###################
+COPY --from=kubeval /kubeval /usr/bin/
+
+#################
+# Install shfmt #
+#################
+ENV GO111MODULE=on \
+    GOROOT=/usr/lib/go \
+    GOPATH=/go
+
+ENV PATH="$PATH":"$GOROOT"/bin:"$GOPATH"/bin
+
+RUN mkdir -p ${GOPATH}/src ${GOPATH}/bin
+RUN go get mvdan.cc/sh/v3/cmd/shfmt
+
 ###########################################
 # Load GitHub Env Vars for GitHub Actions #
 ###########################################
@@ -275,6 +343,7 @@ ENV ACTIONS_RUNNER_DEBUG=${ACTIONS_RUNNER_DEBUG} \
     GITHUB_TOKEN=${GITHUB_TOKEN} \
     GITHUB_WORKSPACE=${GITHUB_WORKSPACE} \
     JAVASCRIPT_ES_CONFIG_FILE=${JAVASCRIPT_ES_CONFIG_FILE} \
+    KUBERNETES_DIRECTORY=${KUBERNETES_DIRECTORY} \
     LINTER_RULES_PATH=${LINTER_RULES_PATH} \
     LOG_FILE=${LOG_FILE} \
     LOG_LEVEL=${LOG_LEVEL} \
@@ -283,14 +352,17 @@ ENV ACTIONS_RUNNER_DEBUG=${ACTIONS_RUNNER_DEBUG} \
     OUTPUT_FOLDER=${OUTPUT_FOLDER} \
     OUTPUT_FORMAT=${OUTPUT_FORMAT} \
     RUN_LOCAL=${RUN_LOCAL} \
+    SNAKEMAKE_CONFIG_FILE=${SNAKEMAKE_CONFIG_FILE} \
     TEST_CASE_RUN=${TEST_CASE_RUN} \
     VALIDATE_ALL_CODEBASE=${VALIDATE_ALL_CODEBASE} \
     VALIDATE_ANSIBLE=${VALIDATE_ANSIBLE} \
     VALIDATE_ARM=${VALIDATE_ARM} \
     VALIDATE_BASH=${VALIDATE_BASH} \
+    VALIDATE_BASH_EXEC=${VALIDATE_BASH_EXEC} \
     VALIDATE_CLOJURE=${VALIDATE_CLOJURE} \
     VALIDATE_CLOUDFORMATION=${VALIDATE_CLOUDFORMATION} \
     VALIDATE_COFFEE=${VALIDATE_COFFEE} \
+    VALIDATE_CSHARP=${VALIDATE_CSHARP} \
     VALIDATE_CSS=${VALIDATE_CSS} \
     VALIDATE_DART=${VALIDATE_DART} \
     VALIDATE_DOCKERFILE=${VALIDATE_DOCKERFILE} \
@@ -303,6 +375,7 @@ ENV ACTIONS_RUNNER_DEBUG=${ACTIONS_RUNNER_DEBUG} \
     VALIDATE_JAVASCRIPT_ES=${VALIDATE_JAVASCRIPT_ES} \
     VALIDATE_JAVASCRIPT_STANDARD=${VALIDATE_JAVASCRIPT_STANDARD} \
     VALIDATE_JSON=${VALIDATE_JSON} \
+    VALIDATE_KUBERNETES_KUBEVAL=${VALIDATE_KUBERNETES_KUBEVAL} \
     VALIDATE_KOTLIN=${VALIDATE_KOTLIN} \
     VALIDATE_LATEX=${VALIDATE_LATEX} \
     VALIDATE_LUA=${VALIDATE_LUA} \
@@ -324,6 +397,9 @@ ENV ACTIONS_RUNNER_DEBUG=${ACTIONS_RUNNER_DEBUG} \
     VALIDATE_R=${VALIDATE_R} \
     VALIDATE_RAKU=${VALIDATE_RAKU} \
     VALIDATE_RUBY=${VALIDATE_RUBY} \
+    VALIDATE_SHELL_SHFMT=${VALIDATE_SHELL_SHFMT} \
+    VALIDATE_SNAKEMAKE_LINT=${VALIDATE_SNAKEMAKE_LINT} \
+    VALIDATE_SNAKEMAKE_SNAKEFMT=${VALIDATE_SNAKEMAKE_SNAKEFMT} \
     VALIDATE_STATES=${VALIDATE_STATES} \
     VALIDATE_SQL=${VALIDATE_SQL} \
     VALIDATE_TERRAFORM=${VALIDATE_TERRAFORM} \
@@ -342,6 +418,11 @@ COPY lib /action/lib
 # Copy linter rules to container #
 ##################################
 COPY TEMPLATES /action/lib/.automation
+
+###################################
+# Run to build file with versions #
+###################################
+RUN /action/lib/linterVersions.sh
 
 ######################
 # Set the entrypoint #

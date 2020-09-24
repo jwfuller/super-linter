@@ -70,15 +70,11 @@ function BuildFileList() {
   # Iterate through the array of all files found #
   ################################################
   info "----------------------------------------------"
-  info "Files that have been modified in the commit(s):"
+  info "------ Files modified in the commit(s): ------"
+  info "----------------------------------------------"
   for FILE in "${RAW_FILE_ARRAY[@]}"; do
-    ###########################
-    # Get the files extension #
-    ###########################
     # Extract just the file extension
-    FILE_TYPE=${FILE##*.}
-    # To lowercase
-    FILE_TYPE=${FILE_TYPE,,}
+    FILE_TYPE="$(GetFileExtension "$FILE")"
     # get the baseFile for additonal logic
     BASE_FILE=$(basename "${FILE,,}")
 
@@ -92,33 +88,183 @@ function BuildFileList() {
     #########
     debug "FILE_TYPE:[${FILE_TYPE}]"
 
-    ################################
-    # Get the CLOUDFORMATION files #
-    ################################
-    if [ "${FILE_TYPE}" == "yml" ] || [ "${FILE_TYPE}" == "yaml" ]; then
+    ######################
+    # Get the shell files #
+    ######################
+    if IsValidShellScript "${FILE}"; then
       ################################
       # Append the file to the array #
       ################################
-      FILE_ARRAY_YAML+=("${FILE}")
+      FILE_ARRAY_BASH+=("${FILE}")
       ##########################################################
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
 
-      #####################################
-      # Check if the file is CFN template #
-      #####################################
-      if DetectCloudFormationFile "${FILE}"; then
-        ################################
-        # Append the file to the array #
-        ################################
-        FILE_ARRAY_CLOUDFORMATION+=("${FILE}")
+    #########################
+    # Get the CLOJURE files #
+    #########################
+    elif [ "${FILE_TYPE}" == "clj" ] || [ "${FILE_TYPE}" == "cljs" ] ||
+      [ "${FILE_TYPE}" == "cljc" ] || [ "${FILE_TYPE}" == "edn" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_CLOJURE+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
 
-        ##########################################################
-        # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-        ##########################################################
-        READ_ONLY_CHANGE_FLAG=1
-      fi
+    ########################
+    # Get the COFFEE files #
+    ########################
+    elif [ "${FILE_TYPE}" == "coffee" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_COFFEESCRIPT+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    ########################
+    # Get the CSHARP files #
+    ########################
+    elif [ "${FILE_TYPE}" == "cs" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_CSHARP+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    #####################
+    # Get the CSS files #
+    #####################
+    elif [ "${FILE_TYPE}" == "css" ] || [ "${FILE_TYPE}" == "scss" ] ||
+      [ "${FILE_TYPE}" == "sass" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_CSS+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    ######################
+    # Get the DART files #
+    ######################
+    elif [ "${FILE_TYPE}" == "dart" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_DART+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    ########################
+    # Get the DOCKER files #
+    ########################
+    elif [ "${FILE_TYPE}" == "dockerfile" ] || [[ "${BASE_FILE}" == *"dockerfile."* ]]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_DOCKER+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    #####################
+    # Get the ENV files #
+    #####################
+    elif [ "${FILE_TYPE}" == "env" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_ENV+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    ########################
+    # Get the Golang files #
+    ########################
+    elif [ "${FILE_TYPE}" == "go" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_GO+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    ########################
+    # Get the GROOVY files #
+    ########################
+    elif [ "$FILE_TYPE" == "groovy" ] || [ "$FILE_TYPE" == "jenkinsfile" ] ||
+      [ "$FILE_TYPE" == "gradle" ] || [ "$FILE_TYPE" == "nf" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_GROOVY+=("$FILE")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    ######################
+    # Get the HTML files #
+    ######################
+    elif [ "${FILE_TYPE}" == "html" ]; then
+      ################################
+      # Append the file to the array #
+      ##############################p##
+      FILE_ARRAY_HTML+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+
+    ######################
+    # Get the Java files #
+    ######################
+    elif [ "${FILE_TYPE}" == "java" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_JAVA+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    ############################
+    # Get the JavaScript files #
+    ############################
+    elif [ "${FILE_TYPE}" == "js" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_JAVASCRIPT_ES+=("${FILE}")
+      FILE_ARRAY_JAVASCRIPT_STANDARD+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+    #####################
+    # Get the JSX files #
+    #####################
+
     ######################
     # Get the JSON files #
     ######################
@@ -167,18 +313,57 @@ function BuildFileList() {
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
-    #####################
-    # Get the XML files #
-    #####################
-    elif [ "${FILE_TYPE}" == "xml" ]; then
+
+    elif [ "${FILE_TYPE}" == "jsx" ]; then
       ################################
       # Append the file to the array #
       ################################
-      FILE_ARRAY_XML+=("${FILE}")
+      FILE_ARRAY_JSX+=("${FILE}")
       ##########################################################
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
+
+    ########################
+    # Get the KOTLIN files #
+    ########################
+    elif [ "${FILE_TYPE}" == "kt" ] || [ "${FILE_TYPE}" == "kts" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_KOTLIN+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    #####################
+    # Get the LUA files #
+    #####################
+    elif [ "$FILE_TYPE" == "lua" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_LUA+=("$FILE")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    #######################
+    # Get the LaTeX files #
+    #######################
+    elif [ "${FILE_TYPE}" == "tex" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_LATEX+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+
     ##########################
     # Get the MARKDOWN files #
     ##########################
@@ -187,52 +372,7 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_MARKDOWN+=("${FILE}")
-    ######################
-    # Get the BASH files #
-    ######################
-  elif [ "${FILE_TYPE}" == "sh" ] || [ "${FILE_TYPE}" == "bash" ] ||
-      [ "${FILE_TYPE}" == "dash" ] || [ "${FILE_TYPE}" == "ksh" ]; then
-      # Need to check if its a zsh file as we cannot parse it
-      if CheckZsh "${FILE}"; then
-        warn "Found [zsh] script"
-        info "ShellCheck does NOT currently support zsh, skipping file"
-      else
-        ################################
-        # Append the file to the array #
-        ################################
-        FILE_ARRAY_BASH+=("${FILE}")
-        ##########################################################
-        # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-        ##########################################################
-        READ_ONLY_CHANGE_FLAG=1
-      fi
-    ######################
-    # Get the PERL files #
-    ######################
-    elif [ "${FILE_TYPE}" == "pl" ] || [ "${FILE_TYPE}" == "pm" ] ||
-      [ "${FILE_TYPE}" == "t" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_PERL+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    ######################
-    # Get the RAKU files #
-    ######################
-    elif [ "${FILE_TYPE}" == "raku" ] || [ "${FILE_TYPE}" == "rakumod" ] ||
-      [ "${FILE_TYPE}" == "rakutest" ] || [ "${FILE_TYPE}" == "pm6" ] ||
-      [ "${FILE_TYPE}" == "pl6" ] || [ "${FILE_TYPE}" == "p6" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_RAKU+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
+
     ######################
     # Get the PHP files #
     ######################
@@ -265,17 +405,45 @@ function BuildFileList() {
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
     ######################
-    # Get the RUBY files #
+    # Get the PERL files #
     ######################
-    elif [ "${FILE_TYPE}" == "rb" ]; then
+    elif [ "${FILE_TYPE}" == "pl" ] || [ "${FILE_TYPE}" == "pm" ] ||
+      [ "${FILE_TYPE}" == "t" ]; then
       ################################
       # Append the file to the array #
       ################################
-      FILE_ARRAY_RUBY+=("${FILE}")
+      FILE_ARRAY_PERL+=("${FILE}")
       ##########################################################
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
+
+    ############################
+    # Get the Powershell files #
+    ############################
+    elif [ "${FILE_TYPE}" == "ps1" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_POWERSHELL+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    #################################
+    # Get the PROTOCOL BUFFER files #
+    #################################
+    elif [ "${FILE_TYPE}" == "proto" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_PROTOBUF+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
     ########################
     # Get the PYTHON files #
     ########################
@@ -289,104 +457,22 @@ function BuildFileList() {
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
-    ########################
-    # Get the COFFEE files #
-    ########################
-    elif [ "${FILE_TYPE}" == "coffee" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_COFFEESCRIPT+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
+
     ######################
-    # Get the Java files #
+    # Get the RAKU files #
     ######################
-    elif [ "${FILE_TYPE}" == "java" ]; then
+    elif [ "${FILE_TYPE}" == "raku" ] || [ "${FILE_TYPE}" == "rakumod" ] ||
+      [ "${FILE_TYPE}" == "rakutest" ] || [ "${FILE_TYPE}" == "pm6" ] ||
+      [ "${FILE_TYPE}" == "pl6" ] || [ "${FILE_TYPE}" == "p6" ]; then
       ################################
       # Append the file to the array #
       ################################
-      FILE_ARRAY_JAVA+=("${FILE}")
+      FILE_ARRAY_RAKU+=("${FILE}")
       ##########################################################
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
-    ############################
-    # Get the JavaScript files #
-    ############################
-    elif [ "${FILE_TYPE}" == "js" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_JAVASCRIPT_ES+=("${FILE}")
-      FILE_ARRAY_JAVASCRIPT_STANDARD+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    ############################
-    # Get the JSX files #
-    ############################
-    elif [ "${FILE_TYPE}" == "jsx" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_JSX+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    ############################
-    # Get the TSX files #
-    ############################
-    elif [ "${FILE_TYPE}" == "tsx" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_TSX+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    ############################
-    # Get the TypeScript files #
-    ############################
-    elif [ "${FILE_TYPE}" == "ts" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_TYPESCRIPT_ES+=("${FILE}")
-      FILE_ARRAY_TYPESCRIPT_STANDARD+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    ########################
-    # Get the Golang files #
-    ########################
-    elif [ "${FILE_TYPE}" == "go" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_GO+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    #######################
-    # Get the LaTeX files #
-    #######################
-    elif [ "${FILE_TYPE}" == "tex" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_LATEX+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
+
     ####################
     # Get the R files  #
     ####################
@@ -399,6 +485,46 @@ function BuildFileList() {
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
+
+    ######################
+    # Get the RUBY files #
+    ######################
+    elif [ "${FILE_TYPE}" == "rb" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_RUBY+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    ###########################
+    # Get the SNAKEMAKE files #
+    ###########################
+    elif [ "${FILE_TYPE}" == "smk" ] || [ "${BASE_FILE}" == "Snakefile" ]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_SNAKEMAKE+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
+    #####################
+    # Get the SQL files #
+    #####################
+    elif [ "${FILE_TYPE}" == "sql" ]; then
+      ################################
+      # Append the file to the array #
+      ##############################p##
+      FILE_ARRAY_SQL+=("${FILE}")
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+
     ###########################
     # Get the Terraform files #
     ###########################
@@ -412,119 +538,87 @@ function BuildFileList() {
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
-    ###########################
-    # Get the Powershell files #
-    ###########################
-    elif [ "${FILE_TYPE}" == "ps1" ]; then
+
+    ############################
+    # Get the TypeScript files #
+    ############################
+    elif [ "${FILE_TYPE}" == "ts" ]; then
       ################################
       # Append the file to the array #
       ################################
-      FILE_ARRAY_POWERSHELL+=("${FILE}")
-    elif [ "${FILE_TYPE}" == "css" ] || [ "${FILE_TYPE}" == "scss" ] ||
-      [ "${FILE_TYPE}" == "sass" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_CSS+=("${FILE}")
+      FILE_ARRAY_TYPESCRIPT_ES+=("${FILE}")
+      FILE_ARRAY_TYPESCRIPT_STANDARD+=("${FILE}")
       ##########################################################
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
-    elif [ "${FILE_TYPE}" == "env" ]; then
+
+    #####################
+    # Get the TSX files #
+    #####################
+    elif [ "${FILE_TYPE}" == "tsx" ]; then
       ################################
       # Append the file to the array #
       ################################
-      FILE_ARRAY_ENV+=("${FILE}")
+      FILE_ARRAY_TSX+=("${FILE}")
       ##########################################################
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
-    elif [ "${FILE_TYPE}" == "kt" ] || [ "${FILE_TYPE}" == "kts" ]; then
+
+    #####################
+    # Get the XML files #
+    #####################
+    elif [ "${FILE_TYPE}" == "xml" ]; then
       ################################
       # Append the file to the array #
       ################################
-      FILE_ARRAY_KOTLIN+=("${FILE}")
+      FILE_ARRAY_XML+=("${FILE}")
       ##########################################################
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
-    elif [ "$FILE_TYPE" == "lua" ]; then
+
+    ################################
+    # Get the CLOUDFORMATION files #
+    ################################
+    elif [ "${FILE_TYPE}" == "yml" ] || [ "${FILE_TYPE}" == "yaml" ]; then
       ################################
       # Append the file to the array #
       ################################
-      FILE_ARRAY_LUA+=("$FILE")
+      FILE_ARRAY_YAML+=("${FILE}")
       ##########################################################
       # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
       ##########################################################
       READ_ONLY_CHANGE_FLAG=1
-    ##################################
-    # Get the Protocol Buffers files #
-    ##################################
-    elif [ "${FILE_TYPE}" == "dart" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_DART+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    elif [ "${FILE_TYPE}" == "proto" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_PROTOBUF+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    elif [ "${FILE_TYPE}" == "dockerfile" ] || [[ "${BASE_FILE}" == *"dockerfile."* ]]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_DOCKER+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    elif [ "${FILE_TYPE}" == "clj" ] || [ "${FILE_TYPE}" == "cljs" ] ||
-      [ "${FILE_TYPE}" == "cljc" ] || [ "${FILE_TYPE}" == "edn" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_CLOJURE+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    elif [ "${FILE_TYPE}" == "html" ]; then
-      ################################
-      # Append the file to the array #
-      ##############################p##
-      FILE_ARRAY_HTML+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    elif [ "${FILE_TYPE}" == "sql" ]; then
-      ################################
-      # Append the file to the array #
-      ##############################p##
-      FILE_ARRAY_SQL+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    elif [ "$FILE_TYPE" == "groovy" ] || [ "$FILE_TYPE" == "jenkinsfile" ] ||
-      [ "$FILE_TYPE" == "gradle" ]; then
-      ################################
-      # Append the file to the array #
-      ################################
-      FILE_ARRAY_GROOVY+=("$FILE")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
+
+      #####################################
+      # Check if the file is CFN template #
+      #####################################
+      if DetectCloudFormationFile "${FILE}"; then
+        ################################
+        # Append the file to the array #
+        ################################
+        FILE_ARRAY_CLOUDFORMATION+=("${FILE}")
+        ##########################################################
+        # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+        ##########################################################
+        READ_ONLY_CHANGE_FLAG=1
+      fi
+
+      ############################################
+      # Check if the file is Kubernetes template #
+      ############################################
+      if DetectKubernetesFile "${FILE}"; then
+        ################################
+        # Append the file to the array #
+        ################################
+        FILE_ARRAY_KUBERNETES+=("${FILE}")
+      fi
+
+    ########################################################################
+    # We have something that we need to try to check file type another way #
+    ########################################################################
     else
       ##############################################
       # Use file to see if we can parse what it is #
@@ -561,8 +655,8 @@ function BuildFileList() {
   info "Successfully gathered list of files..."
 }
 ################################################################################
-#### Function CheckFileType ####################################################
-function CheckFileType() {
+#### Function GetFileType ######################################################
+function GetFileType() {
   # Need to run the file through the 'file' exec to help determine
   # The type of file being parsed
 
@@ -576,15 +670,28 @@ function CheckFileType() {
   ##################
   GET_FILE_TYPE_CMD=$(file "${FILE}" 2>&1)
 
+  echo "${GET_FILE_TYPE_CMD}"
+}
+################################################################################
+#### Function CheckFileType ####################################################
+function CheckFileType() {
+  # Need to run the file through the 'file' exec to help determine
+  # The type of file being parsed
+
+  ################
+  # Pull in Vars #
+  ################
+  FILE="$1"
+
+  #################
+  # Get file type #
+  #################
+  GET_FILE_TYPE_CMD="$(GetFileType "$FILE")"
+
   #################
   # Check if bash #
   #################
-  if [[ ${GET_FILE_TYPE_CMD} == *"Bourne-Again shell script"* ]]; then
-    #######################
-    # It is a bash script #
-    #######################
-    warn "Found bash script without extension:[.sh]"
-    info "Please update file with proper extensions."
+  if IsValidShellScript "$FILE"; then
     ################################
     # Append the file to the array #
     ################################
@@ -607,12 +714,6 @@ function CheckFileType() {
     # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
     ##########################################################
     READ_ONLY_CHANGE_FLAG=1
-  elif [[ ${GET_FILE_TYPE_CMD} == *"zsh script"* ]]; then
-    ######################
-    # It is a ZSH script #
-    ######################
-    warn "Found [zsh] script"
-    info "ShellCheck does NOT currently support zsh, skipping file"
   else
     ############################
     # Extension was not found! #
@@ -625,35 +726,95 @@ function CheckFileType() {
   fi
 }
 ################################################################################
-#### Function CheckZsh #########################################################
-function CheckZsh() {
-  # Spagetti code to make sure were properly excluding zsh
-  # until we get a proper linter
-
+#### Function GetFileExtension ###############################################
+function GetFileExtension() {
   ################
   # Pull in Vars #
   ################
   FILE="$1"
 
-  ##################
-  # Check the file #
-  ##################
-  GET_FILE_TYPE_CMD=$(file "${FILE}" 2>&1)
+  ###########################
+  # Get the files extension #
+  ###########################
+  # Extract just the file extension
+  FILE_TYPE=${FILE##*.}
+  # To lowercase
+  FILE_TYPE=${FILE_TYPE,,}
 
-  if [[ ${GET_FILE_TYPE_CMD} == *"zsh script"* ]]; then
-    ######################
-    # It is a ZSH script #
-    ######################
-    warn "Found [zsh] script"
-    info "ShellCheck does NOT currently support zsh, skipping file"
-    ###################################################
-    # We found zsh file and need to return with a hit #
-    ###################################################
-    return 0
-  else
-    ##################
-    # Not a zsh file #
-    ##################
+  echo "$FILE_TYPE"
+}
+################################################################################
+#### Function IsValidShellScript ###############################################
+function IsValidShellScript() {
+  ################
+  # Pull in Vars #
+  ################
+  FILE="$1"
+
+  #################
+  # Get file type #
+  #################
+  FILE_EXTENSION="$(GetFileExtension "$FILE")"
+  GET_FILE_TYPE_CMD="$(GetFileType "$FILE")"
+
+  trace "File:[${FILE}], File extension:[${FILE_EXTENSION}], File type: [${GET_FILE_TYPE_CMD}]"
+
+  if [[ "${FILE_EXTENSION}" == "zsh" ]] ||
+    [[ ${GET_FILE_TYPE_CMD} == *"zsh script"* ]]; then
+    warn "$FILE is a ZSH script. Skipping..."
     return 1
   fi
+
+  if [ "${FILE_EXTENSION}" == "sh" ] ||
+    [ "${FILE_EXTENSION}" == "bash" ] ||
+    [ "${FILE_EXTENSION}" == "dash" ] ||
+    [ "${FILE_EXTENSION}" == "ksh" ]; then
+      debug "$FILE is a valid shell script (has a valid extension: ${FILE_EXTENSION})"
+      return 0
+  fi
+
+  if [[ "${GET_FILE_TYPE_CMD}" == *"POSIX shell script"* ]] ||
+    [[ ${GET_FILE_TYPE_CMD} == *"Bourne-Again shell script"* ]] ||
+    [[ ${GET_FILE_TYPE_CMD} == *"dash script"* ]] ||
+    [[ ${GET_FILE_TYPE_CMD} == *"ksh script"* ]] ||
+    [[ ${GET_FILE_TYPE_CMD} == *"/usr/bin/env sh script"* ]]; then
+      debug "$FILE is a valid shell script (has a valid file type: ${GET_FILE_TYPE_CMD})"
+      return 0
+  fi
+
+  trace "$FILE is NOT a supported shell script. Skipping"
+  return 1
+}
+################################################################################
+#### Function IsValidShellScript ###############################################
+function PopulateShellScriptsList() {
+  debug "Populating shell script file list. Source: ${GITHUB_WORKSPACE}"
+
+  ###############################################################################
+  # Set the file seperator to newline to allow for grabbing objects with spaces #
+  ###############################################################################
+  IFS=$'\n'
+
+  mapfile -t LIST_FILES < <(find "${GITHUB_WORKSPACE}" \
+    -path "*/node_modules" -prune -o \
+    -path "*/.git" -prune -o \
+    -path "*/.venv" -prune -o \
+    -path "*/.rbenv" -prune -o \
+    -type f 2>&1)
+  for FILE in "${LIST_FILES[@]}"; do
+    if IsValidShellScript "${FILE}"; then
+      debug "Adding ${FILE} to shell script files list"
+      FILE_ARRAY_BASH+=("${FILE}")
+
+      ##########################################################
+      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
+      ##########################################################
+      READ_ONLY_CHANGE_FLAG=1
+    fi
+  done
+
+  ###########################
+  # Set IFS back to default #
+  ###########################
+  IFS="${DEFAULT_IFS}"
 }

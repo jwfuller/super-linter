@@ -29,16 +29,18 @@ IMAGE_VERSION="${IMAGE_VERSION}"          # Version to tag the image
 DOCKERFILE_PATH="${DOCKERFILE_PATH}"      # Path to the Dockerfile to be uploaded
 MAJOR_TAG=''                              # Major tag version if we need to update it
 UPDATE_MAJOR_TAG=0                        # Flag to deploy the major tag version as well
-GCR_URL='containers.pkg.github.com'       # URL to Github Container Registry
+GCR_URL='ghcr.io'                         # URL to Github Container Registry
 DOCKER_IMAGE_REPO=''                      # Docker tag for the image when created
 GCR_IMAGE_REPO=''                         # Docker tag for the image when created
 FOUND_IMAGE=0                             # Flag for if the image has already been built
 CONTAINER_URL=''                          # Final URL to upload
 
-#####################
-# Get the repo name #
-#####################
-REPO_NAME=$(echo "${GITHUB_REPOSITORY}" |cut -f2 -d'/') # GitHub Repository name
+###########################################################
+# Dynamic build variables to pass to container when built #
+###########################################################
+BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')   # Current build date EX> "2017-08-28T09:24:41Z"
+BUILD_REVISION=$(git rev-parse --short HEAD)  # Current git commit EX> "e89faa7"
+BUILD_VERSION=''                              # Current version of the container being built
 
 #########################
 # Source Function Files #
@@ -151,7 +153,7 @@ ValidateInput() {
     info "Successfully found:${F[W]}[IMAGE_REPO]${F[B]}, value:${F[W]}[${IMAGE_REPO}]"
     # Set the docker Image repo and GCR image repo
     DOCKER_IMAGE_REPO="${IMAGE_REPO}"
-    GCR_IMAGE_REPO="${GCR_URL}/${IMAGE_REPO}/${REPO_NAME}"
+    GCR_IMAGE_REPO="${GCR_URL}/${IMAGE_REPO}"
     #########################
     # Set the container URL #
     #########################
@@ -171,7 +173,7 @@ ValidateInput() {
     ##############################
     # Get the name of the branch #
     ##############################
-    BRANCH_NAME=$(git -C "${GITHUB_WORKSPACE}" branch --contains "${GITHUB_SHA}" | awk '{print ${2}}' 2>&1)
+    BRANCH_NAME=$(git -C "${GITHUB_WORKSPACE}" branch --contains "${GITHUB_SHA}" | awk '{print $2}' 2>&1)
 
     #######################
     # Load the error code #
@@ -195,9 +197,14 @@ ValidateInput() {
     # Set the IMAGE_VERSION to the BRANCH_NAME #
     ############################################
     IMAGE_VERSION="${BRANCH_NAME}"
+    BUILD_VERSION="${IMAGE_VERSION}"
     info "Tag:[${IMAGE_VERSION}]"
   else
     info "Successfully found:${F[W]}[IMAGE_VERSION]${F[B]}, value:${F[W]}[${IMAGE_VERSION}]"
+    #########################
+    # Set the build version #
+    #########################
+    BUILD_VERSION="${IMAGE_VERSION}"
   fi
 
   ##################################
@@ -297,7 +304,7 @@ BuildImage() {
   ###################
   # Build the image #
   ###################
-  docker build --no-cache -t "${CONTAINER_URL}:${IMAGE_VERSION}" -f "${DOCKERFILE_PATH}" . 2>&1
+  docker build --no-cache --build-arg "BUILD_DATE=${BUILD_DATE}" --build-arg "BUILD_REVISION=${BUILD_REVISION}" --build-arg "BUILD_VERSION=${BUILD_VERSION}" -t "${CONTAINER_URL}:${IMAGE_VERSION}" -f "${DOCKERFILE_PATH}" . 2>&1
 
   #######################
   # Load the error code #
@@ -320,7 +327,7 @@ BuildImage() {
   ########################################################
   if [ ${UPDATE_MAJOR_TAG} -eq 1 ]; then
     # Tag the image with the major tag as well
-    docker build -t "${CONTAINER_URL}:${MAJOR_TAG}" -f "${DOCKERFILE_PATH}" . 2>&1
+    docker build  --build-arg "BUILD_DATE=${BUILD_DATE}" --build-arg "BUILD_REVISION=${BUILD_REVISION}" --build-arg "BUILD_VERSION=${MAJOR_TAG}" -t "${CONTAINER_URL}:${MAJOR_TAG}" -f "${DOCKERFILE_PATH}" . 2>&1
 
     #######################
     # Load the error code #
@@ -356,7 +363,7 @@ BuildImage() {
   ###################
   # Build the image #
   ###################
-  docker build -t "${ADDITONAL_URL}:${IMAGE_VERSION}" -f "${DOCKERFILE_PATH}" . 2>&1
+  docker build --build-arg "BUILD_DATE=${BUILD_DATE}" --build-arg "BUILD_REVISION=${BUILD_REVISION}" --build-arg "BUILD_VERSION=${BUILD_VERSION}" -t "${ADDITONAL_URL}:${IMAGE_VERSION}" -f "${DOCKERFILE_PATH}" . 2>&1
 
   #######################
   # Load the error code #
@@ -374,25 +381,30 @@ BuildImage() {
     info "Successfull [tag] Version:[${IMAGE_VERSION}] of additonal image!"
   fi
 
-  ###################
-  # Build the image #
-  ###################
-  docker build -t "${ADDITONAL_URL}:${MAJOR_TAG}" -f "${DOCKERFILE_PATH}" . 2>&1
+  ########################################################
+  # Need to see if we need to tag a major update as well #
+  ########################################################
+  if [ ${UPDATE_MAJOR_TAG} -eq 1 ]; then
+    ###################
+    # Build the image #
+    ###################
+    docker build --build-arg "BUILD_DATE=${BUILD_DATE}" --build-arg "BUILD_REVISION=${BUILD_REVISION}" --build-arg "BUILD_VERSION=${MAJOR_TAG}" -t "${ADDITONAL_URL}:${MAJOR_TAG}" -f "${DOCKERFILE_PATH}" . 2>&1
 
-  #######################
-  # Load the error code #
-  #######################
-  ERROR_CODE=$?
+    #######################
+    # Load the error code #
+    #######################
+    ERROR_CODE=$?
 
-  ##############################
-  # Check the shell for errors #
-  ##############################
-  if [ ${ERROR_CODE} -ne 0 ]; then
-    # ERROR
-    fatal "failed to [tag] Version:[${MAJOR_TAG}]Additonal location Dockerfile!"
-  else
-    # SUCCESS
-    info "Successfull [tag] Version:[${MAJOR_TAG}] of additonal image!"
+    ##############################
+    # Check the shell for errors #
+    ##############################
+    if [ ${ERROR_CODE} -ne 0 ]; then
+      # ERROR
+      fatal "failed to [tag] Version:[${MAJOR_TAG}]Additonal location Dockerfile!"
+    else
+      # SUCCESS
+      info "Successfull [tag] Version:[${MAJOR_TAG}] of additonal image!"
+    fi
   fi
 }
 ################################################################################
@@ -448,9 +460,9 @@ UploadImage() {
     ################
     # Get the data #
     ################
-    REPO=$(echo "${GET_INFO_CMD}" | awk '{print ${1}}')
-    TAG=$(echo "${GET_INFO_CMD}" | awk '{print ${2}}')
-    IMAGE_ID=$(echo "${GET_INFO_CMD}" | awk '{print ${3}}')
+    REPO=$(echo "${GET_INFO_CMD}" | awk '{print $1}')
+    TAG=$(echo "${GET_INFO_CMD}" | awk '{print $2}')
+    IMAGE_ID=$(echo "${GET_INFO_CMD}" | awk '{print $3}')
     SIZE="${GET_INFO_CMD##* }"
 
     ###################

@@ -13,11 +13,13 @@ function LintCodebase() {
   ####################
   # Pull in the vars #
   ####################
-  FILE_TYPE="${1}" && shift       # Pull the variable and remove from array path  (Example: JSON)
-  LINTER_NAME="${1}" && shift     # Pull the variable and remove from array path  (Example: jsonlint)
-  LINTER_COMMAND="${1}" && shift  # Pull the variable and remove from array path  (Example: jsonlint -c ConfigFile /path/to/file)
-  FILE_EXTENSIONS="${1}" && shift # Pull the variable and remove from array path  (Example: *.json)
-  FILE_ARRAY=("$@")               # Array of files to validate                    (Example: ${FILE_ARRAY_JSON})
+  FILE_TYPE="${1}" && shift            # Pull the variable and remove from array path  (Example: JSON)
+  LINTER_NAME="${1}" && shift          # Pull the variable and remove from array path  (Example: jsonlint)
+  LINTER_COMMAND="${1}" && shift       # Pull the variable and remove from array path  (Example: jsonlint -c ConfigFile /path/to/file)
+  FILE_EXTENSIONS="${1}" && shift      # Pull the variable and remove from array path  (Example: *.json)
+  FILTER_REGEX_INCLUDE="${1}" && shift # Pull the variable and remove from array path  (Example: */src/*,*/test/*)
+  FILTER_REGEX_EXCLUDE="${1}" && shift # Pull the variable and remove from array path  (Example: */examples/*,*/test/*.test)
+  FILE_ARRAY=("$@")                    # Array of files to validate                    (Example: ${FILE_ARRAY_JSON})
 
   ######################
   # Create Print Array #
@@ -81,20 +83,32 @@ function LintCodebase() {
     # We have files added to array of files to check
     LIST_FILES=("${FILE_ARRAY[@]}") # Copy the array into list
   else
-    ###############################################################################
-    # Set the file separator to newline to allow for grabbing objects with spaces #
-    ###############################################################################
-    IFS=$'\n'
+    if [[ ${FILE_TYPE} == "BASH" ]] ||
+      [[ ${FILE_TYPE} == "BASH_EXEC" ]] ||
+      [[ ${FILE_TYPE} == "SHELL_SHFMT" ]]; then
+      # Populate a list of valid shell scripts.
+      PopulateShellScriptsList
+    else
+      ###############################################################################
+      # Set the file separator to newline to allow for grabbing objects with spaces #
+      ###############################################################################
+      IFS=$'\n'
 
-    #################################
-    # Get list of all files to lint #
-    #################################
-    mapfile -t LIST_FILES < <(find "${GITHUB_WORKSPACE}" -path "*/node_modules" -prune -o -type f -regex "${FILE_EXTENSIONS}" 2>&1)
+      #################################
+      # Get list of all files to lint #
+      #################################
+      mapfile -t LIST_FILES < <(find "${GITHUB_WORKSPACE}" \
+        -path "*/node_modules" -prune -o \
+        -path "*/.git" -prune -o \
+        -path "*/.venv" -prune -o \
+        -path "*/.rbenv" -prune -o \
+        -type f -regex "${FILE_EXTENSIONS}" 2>&1)
 
-    ###########################
-    # Set IFS back to default #
-    ###########################
-    IFS="${DEFAULT_IFS}"
+      ###########################
+      # Set IFS back to default #
+      ###########################
+      IFS="${DEFAULT_IFS}"
+    fi
 
     ############################################################
     # Set it back to empty if loaded with blanks from scanning #
@@ -109,6 +123,24 @@ function LintCodebase() {
       #############################
       SKIP_FLAG=1
     fi
+  fi
+
+  #################################################
+  # Filter files if FILTER_REGEX_INCLUDE is set #
+  #################################################
+  if [[ -n "$FILTER_REGEX_INCLUDE" ]]; then
+    for index in "${!LIST_FILES[@]}"; do
+      [[ ! (${LIST_FILES[$index]} =~ $FILTER_REGEX_INCLUDE) ]] && unset -v 'LIST_FILES[$index]'
+    done
+  fi
+
+  #################################################
+  # Filter files if FILTER_REGEX_EXCLUDE is set #
+  #################################################
+  if [[ -n "$FILTER_REGEX_EXCLUDE" ]]; then
+    for index in "${!LIST_FILES[@]}"; do
+      [[ ${LIST_FILES[$index]} =~ $FILTER_REGEX_EXCLUDE ]] && unset -v 'LIST_FILES[$index]'
+    done
   fi
 
   ###############################
@@ -154,7 +186,7 @@ function LintCodebase() {
       elif [[ ${FILE} == *"${TEST_CASE_FOLDER}"* ]]; then
         # This is the test cases, we should always skip
         continue
-      elif [[ ${FILE} == *".git"* ]]; then
+      elif [[ ${FILE} == *".git" ]] || [[ ${FILE} == *".git/"* ]]; then
         # This is likely the .git folder and shouldn't be parsed
         continue
       elif [[ ${FILE} == *".venv"* ]]; then
@@ -162,6 +194,15 @@ function LintCodebase() {
         continue
       elif [[ ${FILE} == *".rbenv"* ]]; then
         # This is likely the ruby environment folder and shouldn't be parsed
+        continue
+      elif [[ ${FILE_TYPE} == "BASH" ]] && ! IsValidShellScript "${FILE}"; then
+        # not a valid script and we need to skip
+        continue
+      elif [[ ${FILE_TYPE} == "BASH_EXEC" ]] && ! IsValidShellScript "${FILE}"; then
+        # not a valid script and we need to skip
+        continue
+      elif [[ ${FILE_TYPE} == "SHELL_SHFMT" ]] && ! IsValidShellScript "${FILE}"; then
+        # not a valid script and we need to skip
         continue
       fi
 
@@ -229,6 +270,15 @@ function LintCodebase() {
           R --slave -e "errors <- lintr::lint('$FILE');print(errors);quit(save = 'no', status = if (length(errors) > 0) 1 else 0)" 2>&1
         )
         #LINTER_COMMAND="lintr::lint('${FILE}')"
+      #########################################################
+      # Corner case for C# as it writes to tty and not stdout #
+      #########################################################
+      elif [[ ${FILE_TYPE} == "CSHARP" ]]; then
+        LINT_CMD=$(
+          cd "${DIR_NAME}" || exit
+          ${LINTER_COMMAND} "${FILE_NAME}" | tee /dev/tty2 2>&1
+          exit "${PIPESTATUS[0]}"
+        )
       else
         ################################
         # Lint the file with the rules #
@@ -247,14 +297,23 @@ function LintCodebase() {
       # Check the shell for errors #
       ##############################
       if [ ${ERROR_CODE} -ne 0 ]; then
-        #########
-        # Error #
-        #########
-        error "Found errors in [${LINTER_NAME}] linter!"
-        error "[${LINT_CMD}]"
-        error "Linter CMD:[${LINTER_COMMAND} ${FILE}]"
-        # Increment the error count
-        (("ERRORS_FOUND_${FILE_TYPE}++"))
+        debug "Found errors. Error code: ${ERROR_CODE}, File type: ${FILE_TYPE}, Error on missing exec bit: ${ERROR_ON_MISSING_EXEC_BIT}"
+        if [[ ${FILE_TYPE} == "BASH_EXEC" ]] && [[ "${ERROR_ON_MISSING_EXEC_BIT}" == "false" ]]; then
+          ########
+          # WARN #
+          ########
+          warn "Warnings found in [${LINTER_NAME}] linter!"
+          warn "${LINT_CMD}"
+        else
+          #########
+          # Error #
+          #########
+          error "Found errors in [${LINTER_NAME}] linter!"
+          error "[${LINT_CMD}]"
+          error "Linter CMD:[${LINTER_COMMAND} ${FILE}]"
+          # Increment the error count
+          (("ERRORS_FOUND_${FILE_TYPE}++"))
+        fi
 
         #######################################################
         # Store the linting as a temporary file in TAP format #
@@ -283,7 +342,7 @@ function LintCodebase() {
     #################################
     if IsTAP && [ ${INDEX} -gt 0 ]; then
       HeaderTap "${INDEX}" "${REPORT_OUTPUT_FILE}"
-      cat "${TMPFILE}" >> "${REPORT_OUTPUT_FILE}"
+      cat "${TMPFILE}" >>"${REPORT_OUTPUT_FILE}"
     fi
   fi
 }
@@ -293,12 +352,12 @@ function TestCodebase() {
   ####################
   # Pull in the vars #
   ####################
-  FILE_TYPE="${1}"             # Pull the variable and remove from array path  (Example: JSON)
-  LINTER_NAME="${2}"           # Pull the variable and remove from array path  (Example: jsonlint)
-  LINTER_COMMAND="${3}"        # Pull the variable and remove from array path  (Example: jsonlint -c ConfigFile /path/to/file)
-  FILE_EXTENSIONS="${4}"       # Pull the variable and remove from array path  (Example: *.json)
+  FILE_TYPE="${1}"              # Pull the variable and remove from array path  (Example: JSON)
+  LINTER_NAME="${2}"            # Pull the variable and remove from array path  (Example: jsonlint)
+  LINTER_COMMAND="${3}"         # Pull the variable and remove from array path  (Example: jsonlint -c ConfigFile /path/to/file)
+  FILE_EXTENSIONS="${4}"        # Pull the variable and remove from array path  (Example: *.json)
   INDIVIDUAL_TEST_FOLDER="${5}" # Folder for specific tests
-  TESTS_RAN=0                  # Incremented when tests are ran, this will help find failed finds
+  TESTS_RAN=0                   # Incremented when tests are ran, this will help find failed finds
 
   ################
   # print header #
@@ -344,7 +403,13 @@ function TestCodebase() {
   #################################
   # Get list of all files to lint #
   #################################
-  mapfile -t LIST_FILES < <(find "${GITHUB_WORKSPACE}/${TEST_CASE_FOLDER}/${INDIVIDUAL_TEST_FOLDER}" -path "*/node_modules" -prune -o -type f -regex "${FILE_EXTENSIONS}" ! -path "${GITHUB_WORKSPACE}/${TEST_CASE_FOLDER}/ansible/ghe-initialize/*" | sort 2>&1)
+  mapfile -t LIST_FILES < <(find "${GITHUB_WORKSPACE}/${TEST_CASE_FOLDER}/${INDIVIDUAL_TEST_FOLDER}" \
+    -path "*/node_modules" -prune -o \
+    -path "*/.venv" -prune -o \
+    -path "*/.git" -prune -o \
+    -path "*/.rbenv" -prune -o \
+    -type f -regex "${FILE_EXTENSIONS}" \
+    ! -path "${GITHUB_WORKSPACE}/${TEST_CASE_FOLDER}/ansible/ghe-initialize/*" | sort 2>&1)
 
   ########################################
   # Prepare context if TAP output format #
@@ -460,6 +525,15 @@ function TestCodebase() {
         cd "${GITHUB_WORKSPACE}" || exit
         R --slave -e "errors <- lintr::lint('$FILE');print(errors);quit(save = 'no', status = if (length(errors) > 0) 1 else 0)" 2>&1
       )
+    #########################################################
+    # Corner case for C# as it writes to tty and not stdout #
+    #########################################################
+    elif [[ ${FILE_TYPE} == "CSHARP" ]]; then
+      LINT_CMD=$(
+        cd "${DIR_NAME}" || exit
+        ${LINTER_COMMAND} "${FILE_NAME}" | tee /dev/tty2 2>&1
+        exit "${PIPESTATUS[0]}"
+      )
     else
       ################################
       # Lint the file with the rules #
@@ -547,7 +621,7 @@ function TestCodebase() {
   ###########################################################################
   if IsTAP && [ ${TESTS_RAN} -gt 0 ]; then
     HeaderTap "${TESTS_RAN}" "${REPORT_OUTPUT_FILE}"
-    cat "${TMPFILE}" >> "${REPORT_OUTPUT_FILE}"
+    cat "${TMPFILE}" >>"${REPORT_OUTPUT_FILE}"
 
     ########################################################################
     # If expected TAP report exists then compare with the generated report #
@@ -556,7 +630,7 @@ function TestCodebase() {
     if [ -e "${EXPECTED_FILE}" ]; then
       TMPFILE=$(mktemp -q "/tmp/diff-${FILE_TYPE}.XXXXXX")
       ## Ignore white spaces, case sensitive
-      if ! diff -a -w -i "${EXPECTED_FILE}" "${REPORT_OUTPUT_FILE}" > "${TMPFILE}" 2>&1; then
+      if ! diff -a -w -i "${EXPECTED_FILE}" "${REPORT_OUTPUT_FILE}" >"${TMPFILE}" 2>&1; then
         #############################################
         # We failed to compare the reporting output #
         #############################################
@@ -614,9 +688,11 @@ function RunTestCases() {
   TestCodebase "ANSIBLE" "ansible-lint" "ansible-lint -v -c ${ANSIBLE_LINTER_RULES}" ".*\.\(yml\|yaml\)\$" "ansible"
   TestCodebase "ARM" "arm-ttk" "Import-Module ${ARM_TTK_PSD1} ; \${config} = \$(Import-PowerShellDataFile -Path ${ARM_LINTER_RULES}) ; Test-AzTemplate @config -TemplatePath" ".*\.\(json\)\$" "arm"
   TestCodebase "BASH" "shellcheck" "shellcheck --color --external-sources" ".*\.\(sh\|bash\|dash\|ksh\)\$" "shell"
+  TestCodebase "BASH_EXEC" "bash-exec" "bash-exec" ".*\.\(sh\|bash\|dash\|ksh\)\$" "shell"
   TestCodebase "CLOUDFORMATION" "cfn-lint" "cfn-lint --config-file ${CLOUDFORMATION_LINTER_RULES}" ".*\.\(json\|yml\|yaml\)\$" "cloudformation"
   TestCodebase "CLOJURE" "clj-kondo" "clj-kondo --config ${CLOJURE_LINTER_RULES} --lint" ".*\.\(clj\|cljs\|cljc\|edn\)\$" "clojure"
   TestCodebase "COFFEESCRIPT" "coffeelint" "coffeelint -f ${COFFEESCRIPT_LINTER_RULES}" ".*\.\(coffee\)\$" "coffeescript"
+  TestCodebase "CSHARP" "dotnet-format" "dotnet-format --check --folder --exclude / --include" ".*\.\(cs\)\$" "csharp"
   TestCodebase "CSS" "stylelint" "stylelint --config ${CSS_LINTER_RULES}" ".*\.\(css\|scss\|sass\)\$" "css"
   TestCodebase "DART" "dart" "dartanalyzer --fatal-infos  --fatal-warnings --options ${DART_LINTER_RULES}" ".*\.\(dart\)\$" "dart"
   TestCodebase "DOCKERFILE" "dockerfilelint" "dockerfilelint -c ${DOCKERFILE_LINTER_RULES}" ".*\(Dockerfile\)\$" "docker"
@@ -624,12 +700,13 @@ function RunTestCases() {
   TestCodebase "EDITORCONFIG" "editorconfig-checker" "editorconfig-checker" ".*\.ext$" "editorconfig-checker"
   TestCodebase "ENV" "dotenv-linter" "dotenv-linter" ".*\.\(env\)\$" "env"
   TestCodebase "GO" "golangci-lint" "golangci-lint run -c ${GO_LINTER_RULES}" ".*\.\(go\)\$" "golang"
-  TestCodebase "GROOVY" "npm-groovy-lint" "npm-groovy-lint -c $GROOVY_LINTER_RULES --failon error" ".*\.\(groovy\|jenkinsfile\|gradle\)\$" "groovy"
+  TestCodebase "GROOVY" "npm-groovy-lint" "npm-groovy-lint -c $GROOVY_LINTER_RULES --failon warning" ".*\.\(groovy\|jenkinsfile\|gradle\|nf\)\$" "groovy"
   TestCodebase "HTML" "htmlhint" "htmlhint --config ${HTML_LINTER_RULES}" ".*\.\(html\)\$" "html"
   TestCodebase "JAVA" "checkstyle" "java -jar /usr/bin/checkstyle -c ${JAVA_LINTER_RULES}" ".*\.\(java\)\$" "java"
   TestCodebase "JAVASCRIPT_ES" "eslint" "eslint --no-eslintrc -c ${JAVASCRIPT_LINTER_RULES}" ".*\.\(js\)\$" "javascript"
   TestCodebase "JAVASCRIPT_STANDARD" "standard" "standard ${JAVASCRIPT_STANDARD_LINTER_RULES}" ".*\.\(js\)\$" "javascript"
   TestCodebase "JSON" "jsonlint" "jsonlint" ".*\.\(json\)\$" "json"
+  TestCodebase "KUBERNETES_KUBEVAL" "kubeval" "kubeval --strict" ".*\.\(yml\|yaml\)\$" "kubeval"
   TestCodebase "KOTLIN" "ktlint" "ktlint" ".*\.\(kt\|kts\)\$" "kotlin"
   TestCodebase "LATEX" "chktex" "chktex -q -l ${LATEX_LINTER_RULES}" ".*\.\(tex\)\$" "latex"
   TestCodebase "LUA" "lua" "luacheck" ".*\.\(lua\)\$" "lua"
@@ -642,16 +719,19 @@ function RunTestCases() {
   TestCodebase "OPENAPI" "spectral" "spectral lint -r ${OPENAPI_LINTER_RULES}" ".*\.\(ymlopenapi\|jsonopenapi\)\$" "openapi"
   TestCodebase "POWERSHELL" "pwsh" "Invoke-ScriptAnalyzer -EnableExit -Settings ${POWERSHELL_LINTER_RULES} -Path" ".*\.\(ps1\|psm1\|psd1\|ps1xml\|pssc\|psrc\|cdxml\)\$" "powershell"
   TestCodebase "PROTOBUF" "protolint" "protolint lint --config_path ${PROTOBUF_LINTER_RULES}" ".*\.\(proto\)\$" "protobuf"
-  TestCodebase "PYTHON_BLACK" "black" "black --diff --check" ".*\.\(py\)\$" "python"
+  TestCodebase "PYTHON_BLACK" "black" "black --config ${PYTHON_BLACK_LINTER_RULES} --diff --check" ".*\.\(py\)\$" "python"
   TestCodebase "PYTHON_FLAKE8" "flake8" "flake8 --config ${PYTHON_FLAKE8_LINTER_RULES}" ".*\.\(py\)\$" "python"
   TestCodebase "PYTHON_PYLINT" "pylint" "pylint --rcfile ${PYTHON_PYLINT_LINTER_RULES}" ".*\.\(py\)\$" "python"
   TestCodebase "R" "lintr" "lintr::lint()" ".*\.\(r\|rmd\)\$" "r"
   TestCodebase "RAKU" "raku" "raku -c" ".*\.\(raku\|rakumod\|rakutest\|pm6\|pl6\|p6\)\$" "raku"
   TestCodebase "RUBY" "rubocop" "rubocop -c ${RUBY_LINTER_RULES}" ".*\.\(rb\)\$" "ruby"
+  TestCodebase "SHELL_SHFMT" "shfmt" "shfmt -d" ".*\.\(sh\|bash\|dash\|ksh\)\$" "shell_shfmt"
+  TestCodebase "SNAKEMAKE_LINT" "snakemake" "snakemake --lint -s" ".*\.\(smk\)\$" "snakemake"
+  TestCodebase "SNAKEMAKE_SNAKEFMT" "snakefmt" "snakefmt --config ${SNAKEMAKE_SNAKEFMT_LINTER_RULES} --check --compact-diff" ".*\.\(smk\)\$" "snakemake"
   TestCodebase "STATES" "asl-validator" "asl-validator --json-path" ".*\.\(json\)\$" "states"
   TestCodebase "SQL" "sql-lint" "sql-lint --config ${SQL_LINTER_RULES}" ".*\.\(sql\)\$" "sql"
   TestCodebase "TERRAFORM" "tflint" "tflint -c ${TERRAFORM_LINTER_RULES}" ".*\.\(tf\)\$" "terraform"
-  TestCodebase "TERRAFORM_TERRASCAN" "terrascan" "terrascan -f" ".*\.\(tf\)\$" "terraform_terrascan"
+  TestCodebase "TERRAFORM_TERRASCAN" "terrascan" "terrascan scan -p /root/.terrascan/pkg/policies/opa/rego/ -t aws -f " ".*\.\(tf\)\$" "terraform_terrascan"
   TestCodebase "TYPESCRIPT_ES" "eslint" "eslint --no-eslintrc -c ${TYPESCRIPT_LINTER_RULES}" ".*\.\(ts\)\$" "typescript"
   TestCodebase "TYPESCRIPT_STANDARD" "standard" "standard --parser @typescript-eslint/parser --plugin @typescript-eslint/eslint-plugin ${TYPESCRIPT_STANDARD_LINTER_RULES}" ".*\.\(ts\)\$" "typescript"
   TestCodebase "XML" "xmllint" "xmllint" ".*\.\(xml\)\$" "xml"
@@ -728,26 +808,7 @@ function LintAnsibleFiles() {
     #################################
     # Get list of all files to lint #
     #################################
-    mapfile -t LIST_FILES < <(find "${ANSIBLE_DIRECTORY}" *.yaml *.yml 2>&1)
-
-    ###############################################################
-    # Set the list to empty if only MD and TXT files were changed #
-    ###############################################################
-    # No need to run the full ansible checks on read only file changes
-    if [ "${READ_ONLY_CHANGE_FLAG}" -eq 0 ]; then
-      ##########################
-      # Set the array to empty #
-      ##########################
-      LIST_FILES=()
-      ###################################
-      # Send message that were skipping #
-      ###################################
-      debug "- Skipping Ansible lint run as file(s) that were modified were read only..."
-      ############################
-      # Create flag to skip loop #
-      ############################
-      SKIP_FLAG=1
-    fi
+    mapfile -t LIST_FILES < <(find "${ANSIBLE_DIRECTORY}" -path "*/node_modules" -prune -o -type f -regex ".*\.\(yml\|yaml\|json\)\$" 2>&1)
 
     ####################################
     # Check if we have data to look at #
@@ -850,7 +911,7 @@ function LintAnsibleFiles() {
     #################################
     if IsTAP && [ ${INDEX} -gt 0 ]; then
       HeaderTap "${INDEX}" "${REPORT_OUTPUT_FILE}"
-      cat "${TMPFILE}" >> "${REPORT_OUTPUT_FILE}"
+      cat "${TMPFILE}" >>"${REPORT_OUTPUT_FILE}"
     fi
   else
     ########################
@@ -892,7 +953,7 @@ function HeaderTap() {
   ###################
   # Print the goods #
   ###################
-  printf "TAP version 13\n1..%s\n" "${INDEX}" > "${OUTPUT_FILE}"
+  printf "TAP version 13\n1..%s\n" "${INDEX}" >"${OUTPUT_FILE}"
 }
 ################################################################################
 #### Function OkTap ############################################################
@@ -907,7 +968,7 @@ function OkTap() {
   ###################
   # Print the goods #
   ###################
-  echo "ok ${INDEX} - ${FILE}" >> "${TEMP_FILE}"
+  echo "ok ${INDEX} - ${FILE}" >>"${TEMP_FILE}"
 }
 ################################################################################
 #### Function NotOkTap #########################################################
@@ -922,7 +983,7 @@ function NotOkTap() {
   ###################
   # Print the goods #
   ###################
-  echo "not ok ${INDEX} - ${FILE}" >> "${TEMP_FILE}"
+  echo "not ok ${INDEX} - ${FILE}" >>"${TEMP_FILE}"
 }
 ################################################################################
 #### Function AddDetailedMessageIfEnabled ######################################
@@ -938,6 +999,6 @@ function AddDetailedMessageIfEnabled() {
   ####################
   DETAILED_MSG=$(TransformTAPDetails "${LINT_CMD}")
   if [ -n "${DETAILED_MSG}" ]; then
-    printf "  ---\n  message: %s\n  ...\n" "${DETAILED_MSG}" >> "${TEMP_FILE}"
+    printf "  ---\n  message: %s\n  ...\n" "${DETAILED_MSG}" >>"${TEMP_FILE}"
   fi
 }
