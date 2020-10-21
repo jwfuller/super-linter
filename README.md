@@ -79,7 +79,9 @@ Developers on **GitHub** can call the **GitHub Action** to lint their code base 
 | **Shell**                        | [Shellcheck](https://github.com/koalaman/shellcheck) / [executable bit check] / [shfmt](https://github.com/mvdan/sh)                                                           |
 | **Snakemake**                    | [snakefmt](https://github.com/snakemake/snakefmt/) / [snakemake --lint](https://snakemake.readthedocs.io/en/stable/snakefiles/writing_snakefiles.html#best-practices)          |
 | **SQL**                          | [sql-lint](https://github.com/joereynolds/sql-lint)                                                                                                                            |
+| **Tekton**                       | [tekton-lint](https://github.com/IBM/tekton-lint)                                                                                                                              |
 | **Terraform**                    | [tflint](https://github.com/terraform-linters/tflint) / [terrascan](https://github.com/accurics/terrascan)                                                                     |
+| **Terragrunt**                   | [terragrunt](https://github.com/gruntwork-io/terragrunt)                                                                                                                       |
 | **TypeScript**                   | [eslint](https://eslint.org/) / [standard js](https://standardjs.com/)                                                                                                         |
 | **XML**                          | [LibXML](http://xmlsoft.org/)                                                                                                                                                  |
 | **YAML**                         | [YamlLint](https://github.com/adrienverge/yamllint)                                                                                                                            |
@@ -150,6 +152,9 @@ jobs:
       ##########################
       - name: Checkout Code
         uses: actions/checkout@v2
+        with:
+          # Full git history is needed to get a proper list of changed files within `super-linter`
+          fetch-depth: 0
 
       ################################
       # Run Linter against code base #
@@ -205,11 +210,11 @@ But if you wish to select or exclude specific linters, we give you full control 
 | **DEFAULT_WORKSPACE**             | `/tmp/lint`           | The location containing files to lint if you are running locally.                                                                                                                |
 | **DISABLE_ERRORS**                | `false`               | Flag to have the linter complete with exit code 0 even if errors were detected.                                                                                                  |
 | **DOCKERFILE_HADOLINT_FILE_NAME** | `.hadolint.yml`       | Filename for [hadolint configuration](https://github.com/hadolint/hadolint) (ex: `.hadolintlintrc.yaml`)                                                                         |
+| **EDITORCONFIG_FILE_NAME**        | `.ecrc`               | Filename for [editorconfig-checker configuration](https://github.com/editorconfig-checker/editorconfig-checker)                                                                  |
 | **ERROR_ON_MISSING_EXEC_BIT**     | `false`               | If set to `false`, the `bash-exec` linter will report a warning if a shell script is not executable. If set to `true`, the `bash-exec` linter will report an arror instead.      |
 | **FILTER_REGEX_EXCLUDE**          | `none`                | Regular expression defining which files will be excluded from linting  (ex: `.*src/test.*`)                                                                                      |
 | **FILTER_REGEX_INCLUDE**          | `all`                 | Regular expression defining which files will be processed by linters (ex: `.*src/.*`)                                                                                            |
 | **JAVASCRIPT_ES_CONFIG_FILE**     | `.eslintrc.yml`       | Filename for [eslint configuration](https://eslint.org/docs/user-guide/configuring#configuration-file-formats) (ex: `.eslintrc.yml`, `.eslintrc.json`)                           |
-| **KUBERNETES_DIRECTORY**          | `/kubernetes`         | The path to the root directory for Kubernetes descriptors, relative to `DEFAULT_WORKSPACE`.                                                                                       |
 | **LINTER_RULES_PATH**             | `.github/linters`     | Directory for all linter configuration rules.                                                                                                                                    |
 | **LOG_FILE**                      | `super-linter.log`    | The file name for outputting logs. All output is sent to the log file regardless of `LOG_LEVEL`.                                                                                 |
 | **LOG_LEVEL**                     | `VERBOSE`             | How much output the script will generate to the console. One of `VERBOSE`, `DEBUG` or `TRACE`.                                                                                   |
@@ -222,7 +227,7 @@ But if you wish to select or exclude specific linters, we give you full control 
 | **PYTHON_FLAKE8_CONFIG_FILE**     | `.flake8`             | Filename for [flake8 configuration](https://flake8.pycqa.org/en/latest/user/configuration.html) (ex: `.flake8`, `tox.ini`)                                                       |
 | **PYTHON_BLACK_CONFIG_FILE**      | `.python-black`       | Filename for [black configuration](https://github.com/psf/black/blob/master/docs/compatible_configs.md) (ex: `.isort.cfg`, `pyproject.toml`)                                     |
 | **RUBY_CONFIG_FILE**              | `.ruby-lint.yml`      | Filename for [rubocop configuration](https://docs.rubocop.org/rubocop/configuration.html) (ex: `.ruby-lint.yml`, `.rubocop.yml`)                                                 |
-| **SNAKEMAKE_CONFIG_FILE**         | `.snakefmt.toml`      | Filename for [Snakemake configuration](https://github.com/snakemake/snakefmt#configuration) (ex: `pyproject.toml`, `.snakefmt.toml`)                                             |
+| **SNAKEMAKE_SNAKEFMT_CONFIG_FILE**| `.snakefmt.toml`      | Filename for [Snakemake configuration](https://github.com/snakemake/snakefmt#configuration) (ex: `pyproject.toml`, `.snakefmt.toml`)                                             |
 | **TYPESCRIPT_ES_CONFIG_FILE**     | `.eslintrc.yml`       | Filename for [eslint configuration](https://eslint.org/docs/user-guide/configuring#configuration-file-formats) (ex: `.eslintrc.yml`, `.eslintrc.json`)                           |
 | **VALIDATE_ALL_CODEBASE**         | `true`                | Will parse the entire repository and find all files to validate across all types. **NOTE:** When set to `false`, only **new** or **edited** files will be parsed for validation. |
 | **VALIDATE_ANSIBLE**              | `true`                | Flag to enable or disable the linting process of the Ansible language.                                                                                                           |
@@ -251,7 +256,7 @@ But if you wish to select or exclude specific linters, we give you full control 
 | **VALIDATE_KUBERNETES_KUBEVAL**   | `true`                | Flag to enable or disable the linting process of Kubernetes descriptors with Kubeval                                                                                             |
 | **VALIDATE_LATEX**                | `true`                | Flag to enable or disable the linting process of the LaTeX language.                                                                                                             |
 | **VALIDATE_LUA**                  | `true`                | Flag to enable or disable the linting process of the language.                                                                                                                   |
-| **VALIDATE_MD**                   | `true`                | Flag to enable or disable the linting process of the Markdown language.                                                                                                          |
+| **VALIDATE_MARKDOWN**             | `true`                | Flag to enable or disable the linting process of the Markdown language.                                                                                                          |
 | **VALIDATE_OPENAPI**              | `true`                | Flag to enable or disable the linting process of the OpenAPI language.                                                                                                           |
 | **VALIDATE_PERL**                 | `true`                | Flag to enable or disable the linting process of the Perl language.                                                                                                              |
 | **VALIDATE_PHP**                  | `true`                | Flag to enable or disable the linting process of the PHP language. (Utilizing: PHP built-in linter) (keep for backward compatibility)                                            |
@@ -273,8 +278,10 @@ But if you wish to select or exclude specific linters, we give you full control 
 | **VALIDATE_SNAKEMAKE_SNAKEFMT**   | `true`                | Flag to enable or disable the linting process of Snakefiles. (Utilizing: snakefmt)                                                                                               |
 | **VALIDATE_STATES**               | `true`                | Flag to enable or disable the linting process for AWS States Language.                                                                                                           |
 | **VALIDATE_SQL**                  | `true`                | Flag to enable or disable the linting process of the SQL language.                                                                                                               |
+| **VALIDATE_TEKTON**               | `true`                | Flag to enable or disable the linting process of the Tekton language.                                                                                                            |
 | **VALIDATE_TERRAFORM**            | `true`                | Flag to enable or disable the linting process of the Terraform language.                                                                                                         |
 | **VALIDATE_TERRAFORM_TERRASCAN**  | `true`                | Flag to enable or disable the linting process of the Terraform language for security related issues.                                                                             |
+| **VALIDATE_TERRAGRUNT**           | `true`                | Flag to enable or disable the linting process for Terragrunt files.                                                                                                              |
 | **VALIDATE_TSX**                  | `true`                | Flag to enable or disable the linting process for tsx files (Utilizing: eslint)                                                                                                  |
 | **VALIDATE_TYPESCRIPT_ES**        | `true`                | Flag to enable or disable the linting process of the Typescript language. (Utilizing: eslint)                                                                                    |
 | **VALIDATE_TYPESCRIPT_STANDARD**  | `true`                | Flag to enable or disable the linting process of the Typescript language. (Utilizing: standard)                                                                                  |

@@ -8,12 +8,14 @@
 # Get dependency images as build stages #
 #########################################
 FROM borkdude/clj-kondo:2020.09.09 as clj-kondo
-FROM dotenvlinter/dotenv-linter:2.1.0 as dotenv-linter
+FROM dotenvlinter/dotenv-linter:2.2.0 as dotenv-linter
 FROM mstruebing/editorconfig-checker:2.1.0 as editorconfig-checker
 FROM golangci/golangci-lint:v1.31.0 as golangci-lint
 FROM yoheimuta/protolint:v0.26.0 as protolint
 FROM koalaman/shellcheck:v0.7.1 as shellcheck
-FROM wata727/tflint:0.20.2 as tflint
+FROM wata727/tflint:0.20.3 as tflint
+FROM alpine/terragrunt:0.13.4 as terragrunt
+FROM mvdan/shfmt:v3.1.2 as shfmt
 FROM accurics/terrascan:d182f1c as terrascan
 FROM hadolint/hadolint:latest-alpine as dockerfile-lint
 FROM ghcr.io/assignuser/lintr-lib:0.1.2 as lintr-lib
@@ -77,7 +79,7 @@ ARG GLIBC_VERSION='2.31-r0'
 ####################
 # Run APK installs #
 ####################
-RUN apk add --update --no-cache \
+RUN apk add --no-cache \
     ansible-lint \
     bash \
     coreutils \
@@ -216,6 +218,10 @@ COPY --from=tflint /usr/local/bin/tflint /usr/bin/
 COPY --from=terrascan /go/bin/terrascan /usr/bin/
 RUN terrascan init
 
+######################
+# Install Terragrunt #
+######################
+COPY --from=terragrunt /usr/local/bin/terragrunt /usr/bin/
 
 ######################
 # Install protolint #
@@ -270,7 +276,7 @@ RUN printf '#!/bin/bash \n\nif [[ -x "$1" ]]; then exit 0; else echo "Error: Fil
 #################################################
 # Basic setup, programs and init
 RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/testing/" >> /etc/apk/repositories \
-    && apk add --update --no-cache rakudo zef
+    && apk add --no-cache rakudo zef
 
 ######################
 # Install CheckStyle #
@@ -279,7 +285,7 @@ RUN CHECKSTYLE_LATEST=$(curl -s https://api.github.com/repos/checkstyle/checksty
     | grep browser_download_url \
     | grep ".jar" \
     | cut -d '"' -f 4) \
-    && curl --retry 5 --retry-delay 5 -sSL $CHECKSTYLE_LATEST \
+    && curl --retry 5 --retry-delay 5 -sSL "$CHECKSTYLE_LATEST" \
     --output /usr/bin/checkstyle
 
 ####################
@@ -320,94 +326,7 @@ COPY --from=kubeval /kubeval /usr/bin/
 #################
 # Install shfmt #
 #################
-ENV GO111MODULE=on \
-    GOROOT=/usr/lib/go \
-    GOPATH=/go
-
-ENV PATH="$PATH":"$GOROOT"/bin:"$GOPATH"/bin
-
-RUN mkdir -p ${GOPATH}/src ${GOPATH}/bin
-RUN go get mvdan.cc/sh/v3/cmd/shfmt
-
-###########################################
-# Load GitHub Env Vars for GitHub Actions #
-###########################################
-ENV ACTIONS_RUNNER_DEBUG=${ACTIONS_RUNNER_DEBUG} \
-    ANSIBLE_DIRECTORY=${ANSIBLE_DIRECTORY} \
-    CSS_FILE_NAME=${CSS_FILE_NAME} \
-    DEFAULT_BRANCH=${DEFAULT_BRANCH} \
-    DISABLE_ERRORS=${DISABLE_ERRORS} \
-    DOCKERFILE_HADOLINT_FILE_NAME=${DOCKERFILE_HADOLINT_FILE_NAME} \
-    GITHUB_EVENT_PATH=${GITHUB_EVENT_PATH} \
-    GITHUB_SHA=${GITHUB_SHA} \
-    GITHUB_TOKEN=${GITHUB_TOKEN} \
-    GITHUB_WORKSPACE=${GITHUB_WORKSPACE} \
-    JAVASCRIPT_ES_CONFIG_FILE=${JAVASCRIPT_ES_CONFIG_FILE} \
-    KUBERNETES_DIRECTORY=${KUBERNETES_DIRECTORY} \
-    LINTER_RULES_PATH=${LINTER_RULES_PATH} \
-    LOG_FILE=${LOG_FILE} \
-    LOG_LEVEL=${LOG_LEVEL} \
-    MULTI_STATUS=${MULTI_STATUS} \
-    OUTPUT_DETAILS=${OUTPUT_DETAILS} \
-    OUTPUT_FOLDER=${OUTPUT_FOLDER} \
-    OUTPUT_FORMAT=${OUTPUT_FORMAT} \
-    RUN_LOCAL=${RUN_LOCAL} \
-    SNAKEMAKE_CONFIG_FILE=${SNAKEMAKE_CONFIG_FILE} \
-    TEST_CASE_RUN=${TEST_CASE_RUN} \
-    VALIDATE_ALL_CODEBASE=${VALIDATE_ALL_CODEBASE} \
-    VALIDATE_ANSIBLE=${VALIDATE_ANSIBLE} \
-    VALIDATE_ARM=${VALIDATE_ARM} \
-    VALIDATE_BASH=${VALIDATE_BASH} \
-    VALIDATE_BASH_EXEC=${VALIDATE_BASH_EXEC} \
-    VALIDATE_CLOJURE=${VALIDATE_CLOJURE} \
-    VALIDATE_CLOUDFORMATION=${VALIDATE_CLOUDFORMATION} \
-    VALIDATE_COFFEE=${VALIDATE_COFFEE} \
-    VALIDATE_CSHARP=${VALIDATE_CSHARP} \
-    VALIDATE_CSS=${VALIDATE_CSS} \
-    VALIDATE_DART=${VALIDATE_DART} \
-    VALIDATE_DOCKERFILE=${VALIDATE_DOCKERFILE} \
-    VALIDATE_DOCKERFILE_HADOLINT=${VALIDATE_DOCKERFILE_HADOLINT} \
-    VALIDATE_EDITORCONFIG=${VALIDATE_EDITORCONFIG} \
-    VALIDATE_ENV=${VALIDATE_ENV} \
-    VALIDATE_GO=${VALIDATE_GO} \
-    VALIDATE_HTML=${VALIDATE_HTML} \
-    VALIDATE_JAVA=${VALIDATE_JAVA} \
-    VALIDATE_JAVASCRIPT_ES=${VALIDATE_JAVASCRIPT_ES} \
-    VALIDATE_JAVASCRIPT_STANDARD=${VALIDATE_JAVASCRIPT_STANDARD} \
-    VALIDATE_JSON=${VALIDATE_JSON} \
-    VALIDATE_KUBERNETES_KUBEVAL=${VALIDATE_KUBERNETES_KUBEVAL} \
-    VALIDATE_KOTLIN=${VALIDATE_KOTLIN} \
-    VALIDATE_LATEX=${VALIDATE_LATEX} \
-    VALIDATE_LUA=${VALIDATE_LUA} \
-    VALIDATE_MD=${VALIDATE_MD} \
-    VALIDATE_OPENAPI=${VALIDATE_OPENAPI} \
-    VALIDATE_PERL=${VALIDATE_PERL} \
-    VALIDATE_PHP=${VALIDATE_PHP} \
-    VALIDATE_PHP_BUILTIN=${VALIDATE_PHP_BUILTIN} \
-    VALIDATE_PHP_PHPCS=${VALIDATE_PHP_PHPCS} \
-    VALIDATE_PHP_PHPCS_DRUPAL=${VALIDATE_PHP_PHPCS_DRUPAL} \
-    VALIDATE_PHP_PHPSTAN=${VALIDATE_PHP_PHPSTAN} \
-    VALIDATE_PHP_PSALM=${VALIDATE_PHP_PSALM} \
-    VALIDATE_POWERSHELL=${VALIDATE_POWERSHELL} \
-    VALIDATE_PROTOBUF=${VALIDATE_PROTOBUF} \
-    VALIDATE_PYTHON=${VALIDATE_PYTHON} \
-    VALIDATE_PYTHON_BLACK=${VALIDATE_PYTHON_BLACK} \
-    VALIDATE_PYTHON_FLAKE8=${VALIDATE_PYTHON_FLAKE8} \
-    VALIDATE_PYTHON_PYLINT=${VALIDATE_PYTHON_PYLINT} \
-    VALIDATE_R=${VALIDATE_R} \
-    VALIDATE_RAKU=${VALIDATE_RAKU} \
-    VALIDATE_RUBY=${VALIDATE_RUBY} \
-    VALIDATE_SHELL_SHFMT=${VALIDATE_SHELL_SHFMT} \
-    VALIDATE_SNAKEMAKE_LINT=${VALIDATE_SNAKEMAKE_LINT} \
-    VALIDATE_SNAKEMAKE_SNAKEFMT=${VALIDATE_SNAKEMAKE_SNAKEFMT} \
-    VALIDATE_STATES=${VALIDATE_STATES} \
-    VALIDATE_SQL=${VALIDATE_SQL} \
-    VALIDATE_TERRAFORM=${VALIDATE_TERRAFORM} \
-    VALIDATE_TERRAFORM_TERRASCAN=${VALIDATE_TERRAFORM_TERRASCAN} \
-    VALIDATE_TYPESCRIPT_ES=${VALIDATE_TYPESCRIPT_ES} \
-    VALIDATE_TYPESCRIPT_STANDARD=${VALIDATE_TYPESCRIPT_STANDARD} \
-    VALIDATE_XML=${VALIDATE_XML} \
-    VALIDATE_YAML=${VALIDATE_YAML}
+COPY --from=shfmt /bin/shfmt /usr/bin/
 
 #############################
 # Copy scripts to container #

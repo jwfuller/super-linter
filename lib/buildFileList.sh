@@ -10,47 +10,78 @@
 ################################################################################
 #### Function BuildFileList ####################################################
 function BuildFileList() {
-  # Need to build a list of all files changed
-  # This can be pulled from the GITHUB_EVENT_PATH payload
+  debug "Building file list..."
 
   ################
-  # print header #
+  # Pull in vars #
   ################
-  debug "----------------------------------------------"
-  debug "Pulling in code history and branches..."
+  VALIDATE_ALL_CODEBASE="${1}"
+  debug "Validate all code base: ${VALIDATE_ALL_CODEBASE}..."
 
-  #################################################################################
-  # Switch codebase back to the default branch to get a list of all files changed #
-  #################################################################################
-  SWITCH_CMD=$(
-    git -C "${GITHUB_WORKSPACE}" pull --quiet
-    git -C "${GITHUB_WORKSPACE}" checkout "${DEFAULT_BRANCH}" 2>&1
-  )
+  TEST_CASE_RUN="${2}"
+  debug "TEST_CASE_RUN: ${TEST_CASE_RUN}..."
 
-  #######################
-  # Load the error code #
-  #######################
-  ERROR_CODE=$?
+  if [ "${VALIDATE_ALL_CODEBASE}" == "false" ] && [ "${TEST_CASE_RUN}" != "true" ]; then
+    # Need to build a list of all files changed
+    # This can be pulled from the GITHUB_EVENT_PATH payload
 
-  ##############################
-  # Check the shell for errors #
-  ##############################
-  if [ ${ERROR_CODE} -ne 0 ]; then
-    # Error
-    info "Failed to switch to ${DEFAULT_BRANCH} branch to get files changed!"
-    fatal "[${SWITCH_CMD}]"
+    ################
+    # print header #
+    ################
+    debug "----------------------------------------------"
+    debug "Pulling in code history and branches..."
+
+    #################################################################################
+    # Switch codebase back to the default branch to get a list of all files changed #
+    #################################################################################
+    SWITCH_CMD=$(
+      git -C "${GITHUB_WORKSPACE}" pull --quiet
+      git -C "${GITHUB_WORKSPACE}" checkout "${DEFAULT_BRANCH}" 2>&1
+    )
+
+    #######################
+    # Load the error code #
+    #######################
+    ERROR_CODE=$?
+
+    ##############################
+    # Check the shell for errors #
+    ##############################
+    if [ ${ERROR_CODE} -ne 0 ]; then
+      # Error
+      info "Failed to switch to ${DEFAULT_BRANCH} branch to get files changed!"
+      fatal "[${SWITCH_CMD}]"
+    fi
+
+    ################
+    # print header #
+    ################
+    debug "----------------------------------------------"
+    debug "Generating Diff with:[git diff --name-only '${DEFAULT_BRANCH}...${GITHUB_SHA}' --diff-filter=d]"
+
+    #################################################
+    # Get the Array of files changed in the commits #
+    #################################################
+    mapfile -t RAW_FILE_ARRAY < <(git -C "${GITHUB_WORKSPACE}" diff --name-only "${DEFAULT_BRANCH}...${GITHUB_SHA}" --diff-filter=d 2>&1)
+  else
+    WORKSPACE_PATH="${GITHUB_WORKSPACE}"
+    if [ "${TEST_CASE_RUN}" == "true" ]; then
+        WORKSPACE_PATH="${GITHUB_WORKSPACE}/${TEST_CASE_FOLDER}"
+    fi
+
+    ################
+    # print header #
+    ################
+    debug "----------------------------------------------"
+    debug "Populating the file list with all the files in the ${WORKSPACE_PATH} workspace"
+    mapfile -t RAW_FILE_ARRAY < <(find "${WORKSPACE_PATH}" \
+    -path "*/node_modules" -prune -o \
+    -path "*/.git" -prune -o \
+    -path "*/.venv" -prune -o \
+    -path "*/.rbenv" -prune -o \
+    -path "*/.terragrunt-cache" -prune -o \
+    -type f 2>&1 | sort )
   fi
-
-  ################
-  # print header #
-  ################
-  debug "----------------------------------------------"
-  debug "Generating Diff with:[git diff --name-only '${DEFAULT_BRANCH}...${GITHUB_SHA}' --diff-filter=d]"
-
-  #################################################
-  # Get the Array of files changed in the commits #
-  #################################################
-  mapfile -t RAW_FILE_ARRAY < <(git -C "${GITHUB_WORKSPACE}" diff --name-only "${DEFAULT_BRANCH}...${GITHUB_SHA}" --diff-filter=d 2>&1)
 
   #######################
   # Load the error code #
@@ -66,27 +97,48 @@ function BuildFileList() {
     fatal "[${RAW_FILE_ARRAY[*]}]"
   fi
 
+  ##########################################################################
+  # Check to make sure the raw file array is not empty or throw a warning! #
+  ##########################################################################
+  if [ ${#RAW_FILE_ARRAY[@]} -eq 0 ]; then
+    ###############################
+    # No files were found to lint #
+    ###############################
+    warn "No files were found in the GITHUB_WORKSPACE:[${GITHUB_WORKSPACE}] to lint!"
+  fi
+
   ################################################
   # Iterate through the array of all files found #
   ################################################
-  info "----------------------------------------------"
-  info "------ Files modified in the commit(s): ------"
-  info "----------------------------------------------"
+  info "---------------------------------"
+  info "------ File list to check: ------"
+  info "---------------------------------"
   for FILE in "${RAW_FILE_ARRAY[@]}"; do
     # Extract just the file extension
     FILE_TYPE="$(GetFileExtension "$FILE")"
-    # get the baseFile for additonal logic
+    # get the baseFile for additonal logic, lowercase
     BASE_FILE=$(basename "${FILE,,}")
 
     ##############
     # Print file #
     ##############
-    info "File:[${FILE}], File_type:[${FILE_TYPE}], Base_file:[${BASE_FILE}]"
+    debug "File:[${FILE}], File_type:[${FILE_TYPE}], Base_file:[${BASE_FILE}]"
 
-    #########
-    # DEBUG #
-    #########
-    debug "FILE_TYPE:[${FILE_TYPE}]"
+    ########################################################
+    # Don't include test cases if not running in test mode #
+    ########################################################
+    if [[ ${FILE} == *"${TEST_CASE_FOLDER}"* ]] && [ "${TEST_CASE_RUN}" != "true" ]; then
+      debug "TEST_CASE_RUN (${TEST_CASE_RUN}) is not true. Skipping ${FILE}..."
+      continue
+    ##################################################
+    # Include test cases if not running in test mode #
+    ##################################################
+    elif [[ ${FILE} != *"${TEST_CASE_FOLDER}"* ]] && [ "${TEST_CASE_RUN}" == "true" ]; then
+      debug "TEST_CASE_RUN (${TEST_CASE_RUN}) is true. Skipping ${FILE}..."
+    fi
+
+    # Editorconfig-checker should check every file
+    FILE_ARRAY_EDITORCONFIG+=("${FILE}")
 
     ######################
     # Get the shell files #
@@ -96,10 +148,8 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_BASH+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
+      FILE_ARRAY_BASH_EXEC+=("${FILE}")
+      FILE_ARRAY_SHELL_SHFMT+=("${FILE}")
 
     #########################
     # Get the CLOJURE files #
@@ -110,10 +160,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_CLOJURE+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ########################
     # Get the COFFEE files #
@@ -123,10 +169,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_COFFEESCRIPT+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ########################
     # Get the CSHARP files #
@@ -136,10 +178,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_CSHARP+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     #####################
     # Get the CSS files #
@@ -150,10 +188,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_CSS+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ######################
     # Get the DART files #
@@ -163,23 +197,17 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_DART+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ########################
     # Get the DOCKER files #
     ########################
-    elif [ "${FILE_TYPE}" == "dockerfile" ] || [[ "${BASE_FILE}" == *"dockerfile."* ]]; then
+    # Use BASE_FILE here because FILE_TYPE is not reliable when there is no file extension
+    elif [[ "${FILE_TYPE}" != "dockerfilelintrc" ]] && [[ "${BASE_FILE}" == *"dockerfile"* ]]; then
       ################################
       # Append the file to the array #
       ################################
-      FILE_ARRAY_DOCKER+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
+      FILE_ARRAY_DOCKERFILE+=("${FILE}")
+      FILE_ARRAY_DOCKERFILE_HADOLINT+=("${FILE}")
 
     #####################
     # Get the ENV files #
@@ -189,10 +217,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_ENV+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ########################
     # Get the Golang files #
@@ -202,10 +226,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_GO+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ########################
     # Get the GROOVY files #
@@ -216,10 +236,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_GROOVY+=("$FILE")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ######################
     # Get the HTML files #
@@ -229,11 +245,6 @@ function BuildFileList() {
       # Append the file to the array #
       ##############################p##
       FILE_ARRAY_HTML+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-
 
     ######################
     # Get the Java files #
@@ -243,10 +254,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_JAVA+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ############################
     # Get the JavaScript files #
@@ -257,10 +264,7 @@ function BuildFileList() {
       ################################
       FILE_ARRAY_JAVASCRIPT_ES+=("${FILE}")
       FILE_ARRAY_JAVASCRIPT_STANDARD+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
+
     #####################
     # Get the JSX files #
     #####################
@@ -309,20 +313,12 @@ function BuildFileList() {
         ################################
         FILE_ARRAY_STATES+=("${FILE}")
       fi
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     elif [ "${FILE_TYPE}" == "jsx" ]; then
       ################################
       # Append the file to the array #
       ################################
       FILE_ARRAY_JSX+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ########################
     # Get the KOTLIN files #
@@ -332,10 +328,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_KOTLIN+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     #####################
     # Get the LUA files #
@@ -345,10 +337,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_LUA+=("$FILE")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     #######################
     # Get the LaTeX files #
@@ -358,11 +346,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_LATEX+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-
 
     ##########################
     # Get the MARKDOWN files #
@@ -400,10 +383,7 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_PHP_PHPCS_DRUPAL+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
+
     ######################
     # Get the PERL files #
     ######################
@@ -413,23 +393,21 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_PERL+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ############################
     # Get the Powershell files #
     ############################
-    elif [ "${FILE_TYPE}" == "ps1" ]; then
+    elif [ "${FILE_TYPE}" == "ps1" ] ||
+    [ "${FILE_TYPE}" == "psm1" ] ||
+    [ "${FILE_TYPE}" == "psd1" ] ||
+    [ "${FILE_TYPE}" == "ps1xml" ] ||
+    [ "${FILE_TYPE}" == "pssc" ] ||
+    [ "${FILE_TYPE}" == "psrc" ] ||
+    [ "${FILE_TYPE}" == "cdxml" ]; then
       ################################
       # Append the file to the array #
       ################################
       FILE_ARRAY_POWERSHELL+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     #################################
     # Get the PROTOCOL BUFFER files #
@@ -439,10 +417,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_PROTOBUF+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ########################
     # Get the PYTHON files #
@@ -451,12 +425,9 @@ function BuildFileList() {
       ################################
       # Append the file to the array #
       ################################
+      FILE_ARRAY_PYTHON_BLACK+=("${FILE}")
       FILE_ARRAY_PYTHON_PYLINT+=("${FILE}")
       FILE_ARRAY_PYTHON_FLAKE8+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ######################
     # Get the RAKU files #
@@ -468,10 +439,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_RAKU+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ####################
     # Get the R files  #
@@ -481,10 +448,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_R+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ######################
     # Get the RUBY files #
@@ -494,23 +457,16 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_RUBY+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ###########################
     # Get the SNAKEMAKE files #
     ###########################
-    elif [ "${FILE_TYPE}" == "smk" ] || [ "${BASE_FILE}" == "Snakefile" ]; then
+    elif [ "${FILE_TYPE}" == "smk" ] || [ "${BASE_FILE}" == "snakefile" ]; then
       ################################
       # Append the file to the array #
       ################################
-      FILE_ARRAY_SNAKEMAKE+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
+      FILE_ARRAY_SNAKEMAKE_LINT+=("${FILE}")
+      FILE_ARRAY_SNAKEMAKE_SNAKEFMT+=("${FILE}")
 
     #####################
     # Get the SQL files #
@@ -520,10 +476,6 @@ function BuildFileList() {
       # Append the file to the array #
       ##############################p##
       FILE_ARRAY_SQL+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ###########################
     # Get the Terraform files #
@@ -534,10 +486,15 @@ function BuildFileList() {
       ################################
       FILE_ARRAY_TERRAFORM+=("${FILE}")
       FILE_ARRAY_TERRAFORM_TERRASCAN+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
+
+    ############################
+    # Get the Terragrunt files #
+    ############################
+    elif [ "${FILE_TYPE}" == "hcl" ] && [[ ${FILE} != *".tflint.hcl"* ]]; then
+      ################################
+      # Append the file to the array #
+      ################################
+      FILE_ARRAY_TERRAGRUNT+=("${FILE}")
 
     ############################
     # Get the TypeScript files #
@@ -548,10 +505,6 @@ function BuildFileList() {
       ################################
       FILE_ARRAY_TYPESCRIPT_ES+=("${FILE}")
       FILE_ARRAY_TYPESCRIPT_STANDARD+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     #####################
     # Get the TSX files #
@@ -561,10 +514,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_TSX+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     #####################
     # Get the XML files #
@@ -574,10 +523,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_XML+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
     ################################
     # Get the CLOUDFORMATION files #
@@ -587,10 +532,6 @@ function BuildFileList() {
       # Append the file to the array #
       ################################
       FILE_ARRAY_YAML+=("${FILE}")
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
 
       #####################################
       # Check if the file is CFN template #
@@ -600,10 +541,16 @@ function BuildFileList() {
         # Append the file to the array #
         ################################
         FILE_ARRAY_CLOUDFORMATION+=("${FILE}")
-        ##########################################################
-        # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-        ##########################################################
-        READ_ONLY_CHANGE_FLAG=1
+      fi
+
+      ########################################
+      # Check if the file is Tekton template #
+      ########################################
+      if DetectTektonFile "${FILE}"; then
+        ################################
+        # Append the file to the array #
+        ################################
+        FILE_ARRAY_TEKTON+=("${FILE}")
       fi
 
       ############################################
@@ -613,9 +560,8 @@ function BuildFileList() {
         ################################
         # Append the file to the array #
         ################################
-        FILE_ARRAY_KUBERNETES+=("${FILE}")
+        FILE_ARRAY_KUBERNETES_KUBEVAL+=("${FILE}")
       fi
-
     ########################################################################
     # We have something that we need to try to check file type another way #
     ########################################################################
@@ -625,27 +571,31 @@ function BuildFileList() {
       ##############################################
       CheckFileType "${FILE}"
     fi
+    ##########################################
+    # Print line break after each file debug #
+    ##########################################
+    debug ""
   done
 
-  export READ_ONLY_CHANGE_FLAG # Workaround SC2034
+  if [ "${VALIDATE_ALL_CODEBASE}" == "false" ]; then
+    #########################################
+    # Need to switch back to branch of code #
+    #########################################
+    SWITCH2_CMD=$(git -C "${GITHUB_WORKSPACE}" checkout --progress --force "${GITHUB_SHA}" 2>&1)
 
-  #########################################
-  # Need to switch back to branch of code #
-  #########################################
-  SWITCH2_CMD=$(git -C "${GITHUB_WORKSPACE}" checkout --progress --force "${GITHUB_SHA}" 2>&1)
+    #######################
+    # Load the error code #
+    #######################
+    ERROR_CODE=$?
 
-  #######################
-  # Load the error code #
-  #######################
-  ERROR_CODE=$?
-
-  ##############################
-  # Check the shell for errors #
-  ##############################
-  if [ ${ERROR_CODE} -ne 0 ]; then
-    # Error
-    error "Failed to switch back to branch!"
-    fatal "[${SWITCH2_CMD}]"
+    ##############################
+    # Check the shell for errors #
+    ##############################
+    if [ ${ERROR_CODE} -ne 0 ]; then
+      # Error
+      error "Failed to switch back to branch!"
+      fatal "[${SWITCH2_CMD}]"
+    fi
   fi
 
   ################
@@ -688,19 +638,7 @@ function CheckFileType() {
   #################
   GET_FILE_TYPE_CMD="$(GetFileType "$FILE")"
 
-  #################
-  # Check if bash #
-  #################
-  if IsValidShellScript "$FILE"; then
-    ################################
-    # Append the file to the array #
-    ################################
-    FILE_ARRAY_BASH+=("${FILE}")
-    ##########################################################
-    # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-    ##########################################################
-    READ_ONLY_CHANGE_FLAG=1
-  elif [[ ${GET_FILE_TYPE_CMD} == *"Ruby script"* ]]; then
+  if [[ ${GET_FILE_TYPE_CMD} == *"Ruby script"* ]]; then
     #######################
     # It is a Ruby script #
     #######################
@@ -710,19 +648,11 @@ function CheckFileType() {
     # Append the file to the array #
     ################################
     FILE_ARRAY_RUBY+=("${FILE}")
-    ##########################################################
-    # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-    ##########################################################
-    READ_ONLY_CHANGE_FLAG=1
   else
     ############################
     # Extension was not found! #
     ############################
     warn "Failed to get filetype for:[${FILE}]!"
-    ##########################################################
-    # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-    ##########################################################
-    READ_ONLY_CHANGE_FLAG=1
   fi
 }
 ################################################################################
@@ -784,37 +714,4 @@ function IsValidShellScript() {
 
   trace "$FILE is NOT a supported shell script. Skipping"
   return 1
-}
-################################################################################
-#### Function IsValidShellScript ###############################################
-function PopulateShellScriptsList() {
-  debug "Populating shell script file list. Source: ${GITHUB_WORKSPACE}"
-
-  ###############################################################################
-  # Set the file seperator to newline to allow for grabbing objects with spaces #
-  ###############################################################################
-  IFS=$'\n'
-
-  mapfile -t LIST_FILES < <(find "${GITHUB_WORKSPACE}" \
-    -path "*/node_modules" -prune -o \
-    -path "*/.git" -prune -o \
-    -path "*/.venv" -prune -o \
-    -path "*/.rbenv" -prune -o \
-    -type f 2>&1)
-  for FILE in "${LIST_FILES[@]}"; do
-    if IsValidShellScript "${FILE}"; then
-      debug "Adding ${FILE} to shell script files list"
-      FILE_ARRAY_BASH+=("${FILE}")
-
-      ##########################################################
-      # Set the READ_ONLY_CHANGE_FLAG since this could be exec #
-      ##########################################################
-      READ_ONLY_CHANGE_FLAG=1
-    fi
-  done
-
-  ###########################
-  # Set IFS back to default #
-  ###########################
-  IFS="${DEFAULT_IFS}"
 }

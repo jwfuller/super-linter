@@ -99,6 +99,7 @@ function GetValidationInfo() {
       # No linter flags were set - default all to true
       eval "${VALIDATE_LANGUAGE}='true'"
     fi
+    eval "export ${VALIDATE_LANGUAGE}"
   done
 
   #######################################
@@ -110,7 +111,15 @@ function GetValidationInfo() {
     VALIDATE_LANGUAGE="VALIDATE_${LANGUAGE}"
     if [[ ${!VALIDATE_LANGUAGE} == "true" ]]; then
       # We need to validate
-      PRINT_ARRAY+=("- Validating [$LANGUAGE] files in code base...")
+      PRINT_ARRAY+=("- Validating [${LANGUAGE}] files in code base...")
+
+      debug "Defining variables for ${LANGUAGE} linter..."
+
+      ERRORS_VARIABLE_NAME="ERRORS_FOUND_${LANGUAGE}"
+      debug "Setting ${ERRORS_VARIABLE_NAME} variable value to 0..."
+      eval "${ERRORS_VARIABLE_NAME}=0"
+      debug "Exporting ${ERRORS_VARIABLE_NAME} variable..."
+      eval "export ${ERRORS_VARIABLE_NAME}"
     else
       # We are skipping the language
       PRINT_ARRAY+=("- Excluding [$LANGUAGE] files in code base...")
@@ -135,26 +144,6 @@ function GetValidationInfo() {
     # Set the value
     ANSIBLE_DIRECTORY="${TEMP_ANSIBLE_DIRECTORY}"
     debug "Setting Ansible directory to: ${ANSIBLE_DIRECTORY}"
-  fi
-
-  #################################
-  # Validate Kubernetes Directory #
-  #################################
-  if [ -z "${KUBERNETES_DIRECTORY}" ]; then
-    # No Value, need to default
-    KUBERNETES_DIRECTORY="${DEFAULT_KUBERNETES_DIRECTORY}"
-    debug "Setting Kubernetes directory to the default: ${DEFAULT_KUBERNETES_DIRECTORY}"
-  else
-    # Check if first char is '/'
-    if [[ ${KUBERNETES_DIRECTORY:0:1} == "/" ]]; then
-      # Remove first char
-      KUBERNETES_DIRECTORY="${KUBERNETES_DIRECTORY:1}"
-    fi
-    # Need to give it full path
-    TEMP_KUBERNETES_DIRECTORY="${GITHUB_WORKSPACE}/${KUBERNETES_DIRECTORY}"
-    # Set the value
-    KUBERNETES_DIRECTORY="${TEMP_KUBERNETES_DIRECTORY}"
-    debug "Setting Kubernetes directory to: ${KUBERNETES_DIRECTORY}"
   fi
 
   ###############################
@@ -212,8 +201,45 @@ function GetValidationInfo() {
   debug "---------------------------------------------"
   RUNNER=$(whoami)
   debug "Runner:[${RUNNER}]"
-  PRINTENV=$(printenv)
+  PRINTENV=$(printenv | sort)
   debug "ENV:"
   debug "${PRINTENV}"
   debug "---------------------------------------------"
 }
+################################################################################
+#### Function ValidatePowershellModules ########################################
+function ValidatePowershellModules() {
+  VALIDATE_PSSA_MODULE=$(pwsh -c "(Get-Module -Name PSScriptAnalyzer -ListAvailable | Select-Object -First 1).Name" 2>&1)
+  # If module found, ensure Invoke-ScriptAnalyzer command is available
+  if [[ ${VALIDATE_PSSA_MODULE} == "PSScriptAnalyzer" ]]; then
+    VALIDATE_PSSA_CMD=$(pwsh -c "(Get-Command Invoke-ScriptAnalyzer | Select-Object -First 1).Name" 2>&1)
+  else
+    fatal "Failed to find module."
+  fi
+
+  #########################################
+  # validate we found the script analyzer #
+  #########################################
+  if [[ ${VALIDATE_PSSA_CMD} != "Invoke-ScriptAnalyzer" ]]; then
+    fatal "Failed to find module."
+  fi
+
+  #######################
+  # Load the error code #
+  #######################
+  ERROR_CODE=$?
+
+  ##############################
+  # Check the shell for errors #
+  ##############################
+  if [ ${ERROR_CODE} -ne 0 ]; then
+    # Failed
+    error "Failed find module [PSScriptAnalyzer] for [${LINTER_NAME}] in system!"
+    fatal "[PSSA_MODULE ${VALIDATE_PSSA_MODULE}] [PSSA_CMD ${VALIDATE_PSSA_CMD}]"
+  else
+    # Success
+    debug "Successfully found module ${F[W]}[${VALIDATE_PSSA_MODULE}]${F[B]} in system"
+    debug "Successfully found command ${F[W]}[${VALIDATE_PSSA_CMD}]${F[B]} in system"
+  fi
+}
+################################################################################

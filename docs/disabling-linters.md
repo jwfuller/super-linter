@@ -51,7 +51,9 @@ For some linters it is also possible to override rules on a case by case level w
   - [Shell](#shell)
   - [Snakemake](#snakemake)
   - [SQL](#sql)
+  - [Tekton](#tekton)
   - [Terraform](#terraform)
+  - [Terragrunt](#terragrunt)
   - [Typescript eslint](#typescript-eslint)
   - [Typescript standard](#typescript-standard)
   - [XML](#xml)
@@ -315,7 +317,13 @@ analyzer:
 
 ### Hadolint disable single line
 
-- There is currently **No** way to disable rules inline of the file(s)
+```dockerfile
+# hadolint ignore=DL3006
+FROM ubuntu
+
+# hadolint ignore=DL3003,SC1035
+RUN cd /tmp && echo "hello!"
+```
 
 ### Hadolint disable code block
 
@@ -710,6 +718,12 @@ foo() -- Warning is emitted.
 
 - You can pass multiple rules and overwrite default rules
 - File should be located at: `.github/linters/.markdown-lint.yml`
+
+For example, disable [MD013/line-length](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md#md013---line-length) rule using below configuration in `.github/linters/.markdown-lint.yml` file.
+
+```json
+{ "default": true, "MD013": null }
+```
 
 ### markdownlint disable single line
 
@@ -1171,6 +1185,28 @@ shfmt [supports EditorConfig files for configuration](https://github.com/mvdan/s
 
 ---
 
+## Tekton
+
+- [Tekton](https://github.com/IBM/tekton-lint)
+
+### Tekton Config file
+
+- There is currently **No** Tekton format config rules file
+
+### Tekton disable single line
+
+- There is currently **No** way to disable rules inline of the file(s)
+
+### Tekton disable code block
+
+- There is currently **No** way to disable rules inline of the file(s)
+
+### Tekton disable entire file
+
+- There is currently **No** way to disable rules inline of the file(s)
+
+---
+
 ## Terraform
 
 - [tflint](https://github.com/terraform-linters/tflint)
@@ -1190,6 +1226,28 @@ shfmt [supports EditorConfig files for configuration](https://github.com/mvdan/s
 - There is currently **No** way to disable rules inline of the file(s)
 
 ### tflint disable entire file
+
+- There is currently **No** way to disable rules inline of the file(s)
+
+---
+
+## Terragrunt
+
+- [terragrunt](https://github.com/gruntwork-io/terragrunt)
+
+### Terragrunt standard Config file
+
+- There is currently **No** Terragrunt format config rules file
+
+### Terragrunt disable single line
+
+- There is currently **No** way to disable rules inline of the file(s)
+
+### Terragrunt disable code block
+
+- There is currently **No** way to disable rules inline of the file(s)
+
+### Terragrunt disable entire file
 
 - There is currently **No** way to disable rules inline of the file(s)
 

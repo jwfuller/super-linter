@@ -6,13 +6,14 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
-black = "*"
+black = ">=20"
 cfn-lint = "*"
 flake8 = "*"
 pylint = "*"
 snakefmt = "*"
 snakemake = "*"
 yamllint = "*"
+typing_extensions = "*"
 yq = "*"
 
 [requires]
